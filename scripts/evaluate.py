@@ -43,7 +43,8 @@ def ms_per_image_single(model, df, crop: bool, image_size: int, count: int = 50)
 
 
 # Nume afisabile pentru titlul curbelor; fallback pe id-ul run-ului
-DISPLAY_NAMES = {"resnet50": "ResNet50", "baseline": "CNN propriu — de bază",
+DISPLAY_NAMES = {"resnet50": "ResNet50 (conv5)", "resnet50_conv4": "ResNet50 (conv4+conv5)",
+                 "baseline": "CNN propriu — de bază",
                  "no_reg": "CNN propriu — fără regularizare",
                  "no_crop": "CNN propriu — fără decupare"}
 
@@ -52,9 +53,21 @@ def curves_title(run_name: str) -> str:
     return f"Curbe de antrenare: {DISPLAY_NAMES.get(run_name, run_name)}"
 
 
+def stage_label_for(cfg: dict) -> str:
+    """Eticheta liniei de etapa, dupa cheia `unfreeze` din config (lipsa = conv5)."""
+    return f"dezghețare {cfg.get('unfreeze', 'conv5')}"
+
+
+def _stage_label(run_dir) -> str:
+    path = run_dir / "config.json"
+    cfg = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    return stage_label_for(cfg)
+
+
 def write_curves(run_dir, out_dir, run_name: str) -> None:
     """Deseneaza curbele din history.csv in run_dir si le copiaza in out_dir."""
-    plot_history(load_history(run_dir), run_dir / "curves.png", curves_title(run_name))
+    plot_history(load_history(run_dir), run_dir / "curves.png", curves_title(run_name),
+                 _stage_label(run_dir))
     out_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(run_dir / "curves.png", out_dir / "curves.png")
 
@@ -100,7 +113,8 @@ def main() -> None:
     plot_confusion_matrix(y_true, y_pred, run_dir / names[2])
     plot_misclassified(test_df, y_true, y_pred, probs, run_dir / names[3], crop=crop)
     if not suffix:  # curbele nu depind de decupare
-        plot_history(load_history(run_dir), run_dir / "curves.png", curves_title(args.run_name))
+        plot_history(load_history(run_dir), run_dir / "curves.png", curves_title(args.run_name),
+                     _stage_label(run_dir))
         names.append("curves.png")
 
     out_dir = config.PROJECT_ROOT / args.out / args.run_name
