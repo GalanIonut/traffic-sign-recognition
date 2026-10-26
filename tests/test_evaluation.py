@@ -103,3 +103,28 @@ def test_misclassified_limits_two_per_pair(fake_gtsrb, tmp_path):
     conf = np.array([0.9, 0.8, 0.95, 0.7, 0.99])
     idx = select_misclassified(y_true, y_pred, conf, n=16, per_pair=2)
     assert list(idx) == [2, 0, 3]
+
+
+def test_plot_history_marks_stage_boundary(tmp_path, monkeypatch):
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+    history = pd.DataFrame({
+        "epoch": [1, 2, 3, 4], "stage": [1, 1, 2, 2], "loss": [2.0, 1.0, 0.5, 0.4],
+        "accuracy": [0.2, 0.5, 0.8, 0.9], "val_loss": [2.1, 1.2, 1.0, 0.9],
+        "val_accuracy": [0.2, 0.4, 0.5, 0.6], "learning_rate": [1e-3] * 4})
+    captured = []
+    monkeypatch.setattr("traffic_signs.evaluation._save",
+                        lambda fig, path: captured.append(fig))
+    plot_history(history, tmp_path / "c.png", "t")
+    fig = captured[0]
+    for ax in fig.axes:
+        xs = [l.get_xdata()[0] for l in ax.lines if isinstance(l, Line2D)
+              and len(set(l.get_xdata())) == 1]
+        assert 2.5 in xs
+        assert "dezghețare conv5" in ax.get_legend_handles_labels()[1]
+    plt.close(fig)
+    # fara coloana `stage` -> fara linie de etapa
+    plot_history(history.drop(columns="stage"), tmp_path / "d.png", "t")
+    for ax in captured[1].axes:
+        assert "dezghețare conv5" not in ax.get_legend_handles_labels()[1]
+    plt.close(captured[1])

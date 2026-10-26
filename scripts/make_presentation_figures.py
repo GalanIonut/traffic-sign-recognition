@@ -3,12 +3,12 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import tensorflow as tf
 
 from traffic_signs.classes import class_name
 from traffic_signs.config import DATA_DIR, FIGURES_DIR, IMG_SIZE_CNN, PROJECT_ROOT
 from traffic_signs.dataset import load_test_index, load_train_index
 from traffic_signs.evaluation import load_history, predict_classes
+from traffic_signs.models import load_trained_model
 from traffic_signs.preprocessing import crop_roi, load_image, prepare
 from traffic_signs import presentation as pres
 
@@ -31,7 +31,7 @@ def roi_of(row) -> tuple[int, int, int, int]:
 def main(out_dir: Path = FIGURES_DIR) -> None:
     train = load_train_index(DATA_DIR)
     test = load_test_index(DATA_DIR)
-    model = tf.keras.models.load_model(MODEL_PATH)
+    model = load_trained_model(MODEL_PATH)
     y_true, y_pred, probs = predict_classes(model, test, IMG_SIZE_CNN, crop=True)
     print(f"acuratete test: {(y_true == y_pred).mean():.4f}")
 

@@ -6,10 +6,10 @@ import pandas as pd
 import pytest
 
 from traffic_signs.dataset import load_train_index
-from traffic_signs.models import build_cnn
+from traffic_signs.models import build_cnn, build_resnet50
 from traffic_signs.pipeline import make_dataset
 from traffic_signs.preprocessing import prepare
-from traffic_signs.training import train_model
+from traffic_signs.training import train_model, train_two_stage
 
 
 @pytest.fixture
@@ -79,3 +79,59 @@ def test_make_dataset_shuffle_without_augment(df):
         np.testing.assert_allclose(img, expected[i], atol=1e-6)
     assert sorted(order) == list(range(len(df)))
     assert order != list(range(len(df)))
+
+
+STAGE = {"epochs": 1, "learning_rate": 1e-3, "patience": 1}
+
+
+@pytest.fixture
+def two_stage_ds(df):
+    train_ds = make_dataset(df, 32, batch_size=8, training=True)
+    val_ds = make_dataset(df, 32, batch_size=8, training=False)
+    return train_ds, val_ds
+
+
+def test_two_stage_writes_root_files(two_stage_ds, tmp_path):
+    model = build_resnet50(input_size=32, weights=None)
+    run_dir = tmp_path / "run"
+    history = train_two_stage(model, *two_stage_ds, run_dir, STAGE, STAGE,
+                              run_config={"run_name": "t"})
+    assert (run_dir / "model.keras").exists()
+    assert (run_dir / "stage1").is_dir() and (run_dir / "stage2").is_dir()
+    csv = pd.read_csv(run_dir / "history.csv")
+    assert list(csv["epoch"]) == [1, 2] and list(csv["stage"]) == [1, 2]
+    assert list(history["epoch"]) == [1, 2]
+    cfg = json.loads((run_dir / "config.json").read_text(encoding="utf-8"))
+    for key in ("run_name", "epochs_run", "best_epoch", "best_val_loss",
+                "best_val_accuracy", "train_seconds", "params", "trainable_params",
+                "unfrozen_layers", "stage1", "stage2"):
+        assert key in cfg
+    assert cfg["epochs_run"] == 2
+    assert cfg["best_epoch"] == 2  # cea mai buna epoca e doar din etapa 2
+    assert cfg["stage2"] == STAGE
+    assert cfg["unfrozen_layers"] > 0
+    assert 0 < cfg["trainable_params"] < cfg["params"]
+
+
+def test_two_stage_unfreezes_between_stages(two_stage_ds, tmp_path):
+    model = build_resnet50(input_size=32, weights=None)
+    run_dir = tmp_path / "run"
+    calls = []
+
+    def fake_unfreeze(m):
+        calls.append(((run_dir / "stage1" / "history.csv").exists(),
+                      (run_dir / "stage2").exists()))
+        return 7
+
+    train_two_stage(model, *two_stage_ds, run_dir, STAGE, STAGE, unfreeze=fake_unfreeze)
+    assert calls == [(True, False)]
+    cfg = json.loads((run_dir / "config.json").read_text(encoding="utf-8"))
+    assert cfg["unfrozen_layers"] == 7
+
+
+def test_two_stage_refuses_existing_dir(two_stage_ds, tmp_path):
+    (tmp_path / "x").mkdir()
+    (tmp_path / "x" / "f.txt").write_text("a")
+    model = build_resnet50(input_size=32, weights=None)
+    with pytest.raises(FileExistsError):
+        train_two_stage(model, *two_stage_ds, tmp_path / "x", STAGE, STAGE)

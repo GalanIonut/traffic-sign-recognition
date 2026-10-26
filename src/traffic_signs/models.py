@@ -10,7 +10,7 @@ from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Patch
 from tensorflow import keras
 from tensorflow.keras import layers
 
-from traffic_signs.config import IMG_SIZE_CNN, NUM_CLASSES
+from traffic_signs.config import IMG_SIZE_CNN, IMG_SIZE_RESNET, NUM_CLASSES
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
@@ -39,6 +39,58 @@ def build_cnn(
         x = layers.Dropout(dropout, name="dropout")(x)
     outputs = layers.Dense(num_classes, activation="softmax", name="classifier")(x)
     return keras.Model(inputs, outputs, name="cnn_propriu")
+
+
+@keras.utils.register_keras_serializable(package="traffic_signs")
+class ResNetPreprocess(keras.layers.Layer):
+    """Preprocesare ImageNet pentru ResNet50: [0, 1] -> [0, 255] -> RGB->BGR, minus medie."""
+
+    def call(self, x):
+        return keras.applications.resnet50.preprocess_input(x * 255.0)
+
+
+def build_resnet50(
+    input_size: int = IMG_SIZE_RESNET,
+    num_classes: int = NUM_CLASSES,
+    weights: str | None = "imagenet",
+    dropout: float = 0.3,
+) -> keras.Model:
+    """ResNet50 cu baza inghetata, preprocesare in model si cap nou de clasificare."""
+    base = keras.applications.ResNet50(
+        include_top=False,
+        weights=weights,
+        input_shape=(input_size, input_size, 3),
+        pooling="avg",
+        name="resnet50",
+    )
+    base.trainable = False
+    inputs = keras.Input((input_size, input_size, 3), name="input")
+    x = ResNetPreprocess(name="preprocess")(inputs)
+    x = base(x, training=False)  # BN ramane in mod inferenta chiar si dupa dezghetare
+    x = layers.Dropout(dropout, name="dropout")(x)
+    outputs = layers.Dense(num_classes, activation="softmax", name="classifier")(x)
+    return keras.Model(inputs, outputs, name="resnet50_finetune")
+
+
+def load_trained_model(path: Path) -> keras.Model:
+    """Incarca un .keras antrenat; importul modulului inregistreaza stratul custom."""
+    from traffic_signs import augmentation  # noqa: F401  (inregistreaza ClipToUnitRange)
+
+    return keras.models.load_model(path)
+
+
+def unfreeze_top(model: keras.Model, prefix: str | tuple[str, ...] = "conv5_") -> int:
+    """Dezgheata straturile bazei cu numele `prefix*` (un prefix sau un tuplu), fara BatchNormalization."""
+    base = model.get_layer("resnet50")
+    base.trainable = True  # altfel trainable-ul straturilor interne nu conteaza
+    count = 0
+    for layer in base.layers:
+        unfreeze = layer.name.startswith(prefix) and not isinstance(
+            layer, layers.BatchNormalization
+        )
+        layer.trainable = unfreeze
+        count += int(unfreeze)
+    return count
 
 
 def model_summary_text(model: keras.Model) -> str:

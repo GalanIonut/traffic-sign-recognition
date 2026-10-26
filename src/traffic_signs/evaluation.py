@@ -66,8 +66,12 @@ def _save(fig, out_path: Path) -> None:
     plt.close(fig)
 
 
-def plot_history(history: pd.DataFrame, out_path: Path, title: str) -> None:
-    """Curbe loss si acuratete (antrenare vs. validare), cu epoca cea mai buna."""
+def plot_history(history: pd.DataFrame, out_path: Path, title: str,
+                 stage_label: str = "dezghețare conv5") -> None:
+    """Curbe loss si acuratete (antrenare vs. validare), cu epoca cea mai buna.
+
+    Daca istoricul are coloana `stage`, marcheaza trecerea intre etape cu o linie verticala.
+    """
     best = int(history.loc[history["val_loss"].idxmin(), "epoch"])
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
     for ax, key, label in ((axes[0], "loss", "Pierdere (loss)"),
@@ -77,6 +81,9 @@ def plot_history(history: pd.DataFrame, out_path: Path, title: str) -> None:
         if key == "loss":
             ax.set_yscale("log")
         ax.axvline(best, color="gray", linestyle="--", label=f"cea mai bună epocă ({best})")
+        if "stage" in history.columns and history["stage"].nunique() > 1:
+            boundary = history.loc[history["stage"] == history["stage"].min(), "epoch"].max() + 0.5
+            ax.axvline(boundary, color="#eb6834", linestyle=":", linewidth=2, label=stage_label)
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))  # epoci intregi
         ax.set_xlabel("Epocă", fontsize=FONT)
         ax.set_ylabel(label, fontsize=FONT)

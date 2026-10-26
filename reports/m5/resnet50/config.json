@@ -1,0 +1,24 @@
+{
+  "run_name": "resnet50",
+  "stage1_epochs": 5,
+  "stage2_epochs": 10,
+  "no_class_weights": false,
+  "epochs_run": 15,
+  "best_epoch": 14,
+  "best_val_loss": 0.18700136244297028,
+  "best_val_accuracy": 0.9494017362594604,
+  "train_seconds": 1960.5,
+  "params": 23675819,
+  "trainable_params": 15041579,
+  "unfrozen_layers": 22,
+  "stage1": {
+    "epochs": 5,
+    "learning_rate": 0.001,
+    "patience": 2
+  },
+  "stage2": {
+    "epochs": 10,
+    "learning_rate": 0.0001,
+    "patience": 3
+  }
+}
