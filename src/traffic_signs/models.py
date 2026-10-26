@@ -72,6 +72,13 @@ def build_resnet50(
     return keras.Model(inputs, outputs, name="resnet50_finetune")
 
 
+def load_trained_model(path: Path) -> keras.Model:
+    """Incarca un .keras antrenat; importul modulului inregistreaza stratul custom."""
+    from traffic_signs import augmentation  # noqa: F401  (inregistreaza ClipToUnitRange)
+
+    return keras.models.load_model(path)
+
+
 def unfreeze_top(model: keras.Model, prefix: str = "conv5_") -> int:
     """Dezgheata straturile bazei cu numele `prefix*`, fara BatchNormalization."""
     base = model.get_layer("resnet50")

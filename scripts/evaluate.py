@@ -5,7 +5,6 @@ import shutil
 import sys
 import time
 
-import keras
 import pandas as pd
 
 from traffic_signs import config
@@ -13,6 +12,7 @@ from traffic_signs.dataset import load_test_index
 from traffic_signs.evaluation import (compute_metrics, load_history, plot_confusion_matrix,
                                       plot_history, plot_misclassified,
                                       predict_classes)
+from traffic_signs.models import load_trained_model
 from traffic_signs.pipeline import make_dataset
 
 
@@ -57,7 +57,7 @@ def main() -> None:
     crop = trained_crop and not args.no_crop
     suffix = "_nocrop" if (trained_crop and args.no_crop) else ""
 
-    model = keras.models.load_model(run_dir / "model.keras")
+    model = load_trained_model(run_dir / "model.keras")
     test_df = load_test_index(config.DATA_DIR)
     image_size = model.input_shape[1]
     y_true, y_pred, probs = predict_classes(model, test_df, image_size, crop)
