@@ -1,13 +1,17 @@
 """Preprocesarea unei imagini: incarcare, decupare ROI, redimensionare, normalizare."""
 import os
 from pathlib import Path
+from typing import BinaryIO
 
 import numpy as np
 from PIL import Image
 
 
-def load_image(path: str | Path | bytes) -> np.ndarray:
-    """Incarca o imagine ca uint8 (H, W, 3) RGB; transparenta se compune pe alb."""
+def load_image(path: str | Path | bytes | BinaryIO) -> np.ndarray:
+    """Incarca o imagine ca uint8 (H, W, 3) RGB; transparenta se compune pe alb.
+
+    Accepta cale (str/Path), cale ca bytes (nu continut) sau obiect file-like.
+    """
     if isinstance(path, bytes):  # tf.numpy_function trimite caile ca bytes
         path = os.fsdecode(path)
     with Image.open(path) as im:
@@ -33,3 +37,12 @@ def preprocess(img: np.ndarray, size: int) -> np.ndarray:
     """Resize biliniar la (size, size) si normalizare in [0, 1] (float32)."""
     resized = Image.fromarray(img).resize((size, size), Image.BILINEAR)
     return np.asarray(resized, dtype=np.float32) / 255.0
+
+
+def prepare(source: str | Path | bytes | BinaryIO, size: int,
+            roi: tuple[int, int, int, int] | None = None) -> np.ndarray:
+    """Incarcare -> decupare ROI (optional) -> resize + normalizare; float32 (size, size, 3)."""
+    img = load_image(source)
+    if roi is not None:
+        img = crop_roi(img, *roi)
+    return preprocess(img, size).astype(np.float32)

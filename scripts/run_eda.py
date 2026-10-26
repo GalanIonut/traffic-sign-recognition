@@ -1,10 +1,14 @@
 """Genereaza figurile EDA in reports/figures/ si tipareste statistici."""
-from traffic_signs import config
-from traffic_signs.dataset import load_test_index, load_train_index
-from traffic_signs.eda import (class_distribution, plot_class_distribution,
-                               plot_class_grid, plot_size_histogram,
-                               plot_split_distribution)
-from traffic_signs.split import load_split
+import matplotlib
+
+matplotlib.use("Agg")  # backend fara ecran pentru script
+
+from traffic_signs import config  # noqa: E402
+from traffic_signs.dataset import load_test_index, load_train_index  # noqa: E402
+from traffic_signs.eda import (  # noqa: E402
+    class_distribution, plot_class_distribution, plot_class_grid,
+    plot_size_histogram, plot_split_distribution)
+from traffic_signs.split import load_split  # noqa: E402
 
 
 def main() -> None:

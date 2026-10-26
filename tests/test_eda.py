@@ -41,3 +41,10 @@ def test_plots_write_png(fake_gtsrb, tmp_path):
     assert calls == [None] * 4
     for name in "abcd":
         assert (out / f"{name}.png").stat().st_size > 0
+
+
+def test_class_grid_image_transparent_pixel_is_white(tmp_path):
+    from traffic_signs.eda import _load_sign_image
+    path = tmp_path / "t.png"
+    Image.new("RGBA", (4, 4), (0, 0, 0, 0)).save(path)
+    assert (_load_sign_image(path) == 255).all()

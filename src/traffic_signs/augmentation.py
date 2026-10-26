@@ -23,7 +23,7 @@ def build_augmentation(seed: int = SEED) -> keras.Sequential:
             keras.layers.RandomZoom(0.1, fill_mode="nearest", seed=seed + 1),
             keras.layers.RandomTranslation(0.1, 0.1, fill_mode="nearest", seed=seed + 2),
             keras.layers.RandomBrightness(0.2, value_range=(0, 1), seed=seed + 3),
-            keras.layers.RandomContrast(0.2, seed=seed + 4),
+            keras.layers.RandomContrast(0.2, value_range=(0, 1), seed=seed + 4),
             ClipToUnitRange(),
         ],
         name="augmentation",

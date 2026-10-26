@@ -5,9 +5,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from traffic_signs.config import SEED, VAL_FRACTION
 
-def split_by_track(df: pd.DataFrame, val_fraction: float = 0.15,
-                   seed: int = 42) -> tuple[pd.DataFrame, pd.DataFrame]:
+
+def split_by_track(df: pd.DataFrame, val_fraction: float = VAL_FRACTION,
+                   seed: int = SEED) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Imparte pe track-uri: niciun track nu apare si in train, si in val."""
     if df["track_id"].isna().any():
         raise ValueError("Exista randuri fara track_id; impartirea pe track-uri nu e posibila")

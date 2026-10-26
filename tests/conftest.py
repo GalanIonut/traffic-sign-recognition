@@ -3,10 +3,13 @@ import os
 # Reduce zgomotul din logurile C++ ale TensorFlow
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
+import matplotlib
 import numpy as np
 import pandas as pd
 import pytest
 from PIL import Image
+
+matplotlib.use("Agg")  # backend fara ecran in teste
 
 COLUMNS = ["Width", "Height", "Roi.X1", "Roi.Y1", "Roi.X2", "Roi.Y2", "ClassId", "Path"]
 WIDTH, HEIGHT = 30, 32

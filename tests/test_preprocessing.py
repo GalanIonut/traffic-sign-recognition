@@ -65,3 +65,25 @@ def test_preprocess_shape_range(size):
     assert out.shape == (size, size, 3)
     assert out.dtype == np.float32
     assert out.min() >= 0.0 and out.max() <= 1.0
+
+
+def test_load_image_accepts_file_like(fake_gtsrb):
+    import io
+    path = next((fake_gtsrb / "Train" / "0").glob("*.png"))
+    img = load_image(io.BytesIO(path.read_bytes()))
+    assert img.shape == (32, 30, 3)
+    assert np.array_equal(img, load_image(path))
+
+
+def test_prepare_matches_pipeline(fake_gtsrb):
+    from traffic_signs.dataset import load_train_index
+    from traffic_signs.pipeline import make_dataset
+    from traffic_signs.preprocessing import prepare
+    df = load_train_index(fake_gtsrb)
+    row = df.iloc[0]
+    roi = (int(row.roi_x1), int(row.roi_y1), int(row.roi_x2), int(row.roi_y2))
+    out = prepare(row.path, 48, roi)
+    assert out.shape == (48, 48, 3) and out.dtype == np.float32
+    img, _ = next(iter(make_dataset(df, 48, batch_size=1, training=False)))
+    assert np.allclose(out, img[0].numpy())
+    assert prepare(row.path, 48).shape == (48, 48, 3)

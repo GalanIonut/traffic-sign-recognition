@@ -2,16 +2,13 @@
 import textwrap
 from pathlib import Path
 
-import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
-from PIL import Image  # noqa: E402
-
-from traffic_signs.classes import class_name  # noqa: E402
-from traffic_signs.config import NUM_CLASSES  # noqa: E402
+from traffic_signs.classes import class_name
+from traffic_signs.config import NUM_CLASSES
+from traffic_signs.preprocessing import load_image
 
 DPI = 150
 COLOR = "#2b6cb0"
@@ -73,6 +70,11 @@ def _short_name(class_id: int, width: int = 20, max_lines: int = 4) -> str:
     return "\n".join(lines)
 
 
+def _load_sign_image(path: Path) -> np.ndarray:
+    """Imagine RGB din Meta/; transparenta se compune pe alb."""
+    return load_image(path)
+
+
 def plot_class_grid(meta_dir: Path, out_path: Path) -> None:
     """Grila cu cele 43 de semne din Meta/, cu ID si nume scurt."""
     cols, rows = 8, 6
@@ -81,8 +83,7 @@ def plot_class_grid(meta_dir: Path, out_path: Path) -> None:
         ax.axis("off")
         if i >= NUM_CLASSES:
             continue
-        with Image.open(Path(meta_dir) / f"{i}.png") as im:
-            ax.imshow(np.asarray(im.convert("RGB")))
+        ax.imshow(_load_sign_image(Path(meta_dir) / f"{i}.png"))
         ax.set_title(f"{i}\n{_short_name(i)}", fontsize=9.5, pad=4)
     fig.suptitle("Cele 43 de clase de semne de circulație", fontsize=18)
     fig.subplots_adjust(hspace=0.75, wspace=0.15, top=0.92)

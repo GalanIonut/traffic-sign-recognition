@@ -49,3 +49,8 @@ def test_crop_flag(df):
     a = next(iter(make_dataset(one, 48, batch_size=1, crop=True)))[0].numpy()
     b = next(iter(make_dataset(one, 48, batch_size=1, crop=False)))[0].numpy()
     assert not np.array_equal(a, b)
+
+
+def test_empty_dataframe_raises(df):
+    with pytest.raises(ValueError, match="gol"):
+        make_dataset(df.iloc[0:0], image_size=48)

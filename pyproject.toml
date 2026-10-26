@@ -1,7 +1,7 @@
 [project]
 name = "traffic-signs"
 version = "0.1.0"
-description = "Add your description here"
+description = "Recunoașterea semnelor de circulație (GTSRB): CNN propriu vs. ResNet50, cu aplicație web"
 authors = [
     { name = "GalanIonut", email = "93884682+GalanIonut@users.noreply.github.com" }
 ]
