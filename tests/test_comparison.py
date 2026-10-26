@@ -45,7 +45,10 @@ def test_comparison_table(entries):
     assert list(t.columns) == COLUMNS
     cnn, res = t.iloc[0], t.iloc[1]
     assert cnn["model"] == "cnn" and res["model"] == "resnet"
-    assert cnn["model_mb"] == pytest.approx(2.0) and res["model_mb"] == pytest.approx(36.0)
+    assert cnn["file_mb"] == pytest.approx(2.0) and res["file_mb"] == pytest.approx(36.0)
+    assert cnn["weights_mb"] == pytest.approx(1_000_000 * 4 / 2**20)
+    assert res["weights_mb"] == pytest.approx(23_000_000 * 4 / 2**20)
+    assert "model_mb" not in t.columns
     assert cnn["train_minutes"] == pytest.approx(10.0)
     assert res["train_minutes"] == pytest.approx(120.0)
     assert cnn["test_accuracy"] == 0.99 and res["f1_macro"] == 0.99
@@ -108,7 +111,7 @@ def test_title_is_truthful_both_ways(entries):
     from traffic_signs.comparison import comparison_title
     t = model_comparison_table(entries)
     win = comparison_title(t)
-    assert "ResNet50 câștigă 0,5 pp" in win and "de 18× mai mare" in win
+    assert "ResNet50 câștigă 0,5 pp" in win and "de 23× mai mare" in win
     assert "de 12× mai lent la antrenare" in win
     t.loc[1, "test_accuracy"] = 0.98
     lose = comparison_title(t)
@@ -116,7 +119,7 @@ def test_title_is_truthful_both_ways(entries):
 
 
 def _row(model, acc, mb, minutes):
-    return {"model": model, "test_accuracy": acc, "model_mb": mb, "train_minutes": minutes}
+    return {"model": model, "test_accuracy": acc, "weights_mb": mb, "train_minutes": minutes}
 
 
 def _tbl(res_acc, res_mb, res_min):
@@ -170,3 +173,19 @@ def test_default_figure_path_and_relative_out(tmp_path, monkeypatch):
     _populate(tmp_path / "reports" / "m4")
     assert len(mod.export_m4_figures("reports/m4")) == 4  # cale relativa
     assert mod.export_m4_figures("reports/m5") == []
+
+
+def test_title_fits_in_figure(entries):
+    import matplotlib.pyplot as plt
+    from traffic_signs.comparison import build_comparison_figure
+    t = model_comparison_table(entries)
+    t.loc[1, "test_accuracy"] = 0.97  # varianta cu titlul cel mai lung
+    fig = build_comparison_figure(t)
+    fig.canvas.draw()
+    box = fig.title_text.get_window_extent()
+    assert "\n" in fig.title_text.get_text()
+    assert fig.bbox.x0 <= box.x0 and box.x1 <= fig.bbox.x1
+    assert fig.bbox.y0 <= box.y0 and box.y1 <= fig.bbox.y1
+    sub = [x for x in fig.texts if x is not fig.title_text][0].get_window_extent()
+    assert box.y0 >= sub.y1  # nu se suprapune cu subtitlul
+    plt.close(fig)

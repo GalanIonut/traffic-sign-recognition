@@ -79,8 +79,8 @@ def load_trained_model(path: Path) -> keras.Model:
     return keras.models.load_model(path)
 
 
-def unfreeze_top(model: keras.Model, prefix: str = "conv5_") -> int:
-    """Dezgheata straturile bazei cu numele `prefix*`, fara BatchNormalization."""
+def unfreeze_top(model: keras.Model, prefix: str | tuple[str, ...] = "conv5_") -> int:
+    """Dezgheata straturile bazei cu numele `prefix*` (un prefix sau un tuplu), fara BatchNormalization."""
     base = model.get_layer("resnet50")
     base.trainable = True  # altfel trainable-ul straturilor interne nu conteaza
     count = 0

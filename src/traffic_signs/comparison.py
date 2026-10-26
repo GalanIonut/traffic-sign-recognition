@@ -11,9 +11,9 @@ from matplotlib.ticker import FuncFormatter
 
 from traffic_signs.presentation import BG, BLUE, GRID, INK, INK2, ORANGE, W, H, _save, _style_axes
 
-COLUMNS = ["model", "test_accuracy", "f1_macro", "params", "trainable_params", "model_mb",
-           "train_minutes", "epochs_run", "ms_per_image_batch", "ms_per_image_single"]
-_MB = 1024 * 1024  # mărimea fișierului în MiB
+COLUMNS = ["model", "test_accuracy", "f1_macro", "params", "trainable_params", "weights_mb",
+           "file_mb", "train_minutes", "epochs_run", "ms_per_image_batch", "ms_per_image_single"]
+_MB = 1024 * 1024  # MiB
 _NAMES = {"cnn": "CNN propriu", "resnet": "ResNet50", "resnet50": "ResNet50"}
 
 
@@ -34,7 +34,9 @@ def model_comparison_table(entries: list[dict]) -> pd.DataFrame:
             "f1_macro": metrics["f1_macro"],
             "params": cfg["params"],
             "trainable_params": cfg.get("trainable_params", cfg["params"]),
-            "model_mb": (run_dir / "model.keras").stat().st_size / _MB,
+            "weights_mb": cfg["params"] * 4 / _MB,  # greutăți float32, fără starea optimizatorului
+            # fișierul .keras include și starea Adam (de ~2 ori numărul de greutăți)
+            "file_mb": (run_dir / "model.keras").stat().st_size / _MB,
             "train_minutes": cfg["train_seconds"] / 60,
             "epochs_run": cfg["epochs_run"],
             "ms_per_image_batch": metrics["ms_per_image_batch"],
@@ -74,7 +76,7 @@ def comparison_title(table: pd.DataFrame, cnn_label: str = "cnn",
     else:
         head = f"CNN-ul propriu câștigă {_ro(-diff_pp, dec)} pp acuratețe"
 
-    size = res["model_mb"] / cnn["model_mb"]
+    size = res["weights_mb"] / cnn["weights_mb"]
     time = res["train_minutes"] / cnn["train_minutes"]
     size_txt = (f"e de {_times(size)} mai mare" if size >= 1.05 else
                 f"e de {_times(1 / size)} mai mic" if size <= 1 / 1.05 else "are aceeași mărime")
@@ -91,24 +93,40 @@ def comparison_title(table: pd.DataFrame, cnn_label: str = "cnn",
     return f"{head}; ResNet50 {tail}"
 
 
+def split_title(title: str) -> str:
+    """Rupe titlul pe două rânduri la primul „; ” sau „, ” (concluzia sus, costurile jos)."""
+    for sep in ("; ", ", "):
+        head, found, tail = title.partition(sep)
+        if found:
+            return f"{head}{sep.strip()}\n{tail}"
+    return title
+
+
 PANELS = [
     ("error_pct", "Eroare pe test (%)", lambda v: _ro(v, 2) + "%"),
     ("train_minutes", "Timp de antrenare (minute)", lambda v: _ro(v, 1)),
-    ("model_mb", "Mărimea modelului (MB)", lambda v: _ro(v, 1)),
+    ("weights_mb", "Mărimea modelului (MB, doar greutăți)", lambda v: _ro(v, 1)),
     ("ms_per_image_batch", "Timp de inferență (ms/imagine, batch)", lambda v: _ro(v, 2)),
 ]
 
 
 def plot_cnn_vs_resnet(table: pd.DataFrame, out_path: Path, cnn_label: str = "cnn",
                        resnet_label: str = "resnet") -> None:
+    """Desenează și salvează figura de comparație."""
+    _save(build_comparison_figure(table, cnn_label, resnet_label), out_path)
+
+
+def build_comparison_figure(table: pd.DataFrame, cnn_label: str = "cnn",
+                            resnet_label: str = "resnet"):
     """Patru panouri de bare orizontale, fiecare cu axa ei; rândurile se aleg după etichetă."""
-    title_txt = comparison_title(table, cnn_label, resnet_label)
+    title_txt = split_title(comparison_title(table, cnn_label, resnet_label))
     table = pd.DataFrame([_pick(table, cnn_label), _pick(table, resnet_label)]).reset_index(drop=True)
     table["error_pct"] = (1 - table["test_accuracy"].astype(float)) * 100
     fig = plt.figure(figsize=(W, H), facecolor=BG)
-    fig.text(0.6 / W, 1 - 0.75 / H, title_txt, fontsize=20, fontweight="bold",
-             color=INK, ha="left", va="center")
-    fig.text(0.6 / W, 1 - 1.35 / H, "Același set de test (12.630 de imagini, semne decupate)",
+    title = fig.text(0.6 / W, 1 - 0.3 / H, title_txt, fontsize=20, fontweight="bold",
+                      color=INK, ha="left", va="top", linespacing=1.25)
+    fig.title_text = title  # pentru verificarea în teste că încape în figură
+    fig.text(0.6 / W, 1 - 1.5 / H, "Același set de test (12.630 de imagini, semne decupate)",
              fontsize=15, color=INK2, ha="left", va="center")
     n = len(table)
     names = [_NAMES.get(m, m) for m in table["model"]]
@@ -122,9 +140,16 @@ def plot_cnn_vs_resnet(table: pd.DataFrame, out_path: Path, cnn_label: str = "cn
         vals = table[col].astype(float).tolist()
         ys = list(range(n))[::-1]
         ax.barh(ys, vals, height=0.55, color=colors, zorder=2)
-        top = max(vals) * 1.3 if max(vals) > 0 else 1
+        top = max(vals) * (1.75 if col == "ms_per_image_batch" else 1.3) if max(vals) > 0 else 1
         ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: _ro(v, 0 if v == int(v) else 1)))
-        for y, v in zip(ys, vals):
+        single = table["ms_per_image_single"].astype(float).tolist()
+        for k, (y, v) in enumerate(zip(ys, vals)):
+            if col == "ms_per_image_batch":  # sub valoare: latența pe o singură imagine
+                ax.text(v + top * 0.015, y + 0.12, fmt(v), fontsize=16, fontweight="bold",
+                        color=INK, ha="left", va="center", zorder=3)
+                ax.text(v + top * 0.015, y - 0.2, f"1 imagine: {_ro(single[k], 1)} ms",
+                        fontsize=13, color=INK2, ha="left", va="center", zorder=3)
+                continue
             ax.text(v + top * 0.015, y, fmt(v), fontsize=16, fontweight="bold", color=INK,
                     ha="left", va="center", zorder=3)
         ax.set_yticks(ys, names)
@@ -134,4 +159,4 @@ def plot_cnn_vs_resnet(table: pd.DataFrame, out_path: Path, cnn_label: str = "cn
         ax.xaxis.grid(True, color=GRID, lw=1, zorder=0)
         ax.tick_params(axis="x", labelsize=12)
         ax.set_title(title, fontsize=16, fontweight="bold", color=INK, loc="left", pad=10)
-    _save(fig, out_path)
+    return fig

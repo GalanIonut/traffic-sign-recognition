@@ -1,4 +1,8 @@
-"""Evalueaza un run pe setul de test; scrie rezultatele in runs/<nume> si reports/m4/<nume>."""
+"""Evalueaza un run pe setul de test; scrie rezultatele in runs/<nume> si <out>/<nume>.
+
+<out> se alege cu --out (implicit reports/m4; pentru ResNet50 se foloseste reports/m5).
+Cu --curves-only se regenereaza doar curbele de antrenare, fara reevaluare.
+"""
 import argparse
 import json
 import shutil
@@ -38,6 +42,23 @@ def ms_per_image_single(model, df, crop: bool, image_size: int, count: int = 50)
     return (time.perf_counter() - start) / len(images) * 1000
 
 
+# Nume afisabile pentru titlul curbelor; fallback pe id-ul run-ului
+DISPLAY_NAMES = {"resnet50": "ResNet50", "baseline": "CNN propriu — de bază",
+                 "no_reg": "CNN propriu — fără regularizare",
+                 "no_crop": "CNN propriu — fără decupare"}
+
+
+def curves_title(run_name: str) -> str:
+    return f"Curbe de antrenare: {DISPLAY_NAMES.get(run_name, run_name)}"
+
+
+def write_curves(run_dir, out_dir, run_name: str) -> None:
+    """Deseneaza curbele din history.csv in run_dir si le copiaza in out_dir."""
+    plot_history(load_history(run_dir), run_dir / "curves.png", curves_title(run_name))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(run_dir / "curves.png", out_dir / "curves.png")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-name", required=True)
@@ -45,6 +66,8 @@ def main() -> None:
                         help="evalueaza pe imagini nedecupate")
     parser.add_argument("--out", default="reports/m4",
                         help="folder (relativ la radacina proiectului) pentru rezultate")
+    parser.add_argument("--curves-only", action="store_true",
+                        help="regenereaza doar curves.png (fara reevaluare)")
     args = parser.parse_args()
 
     run_dir = config.PROJECT_ROOT / "runs" / args.run_name
@@ -52,6 +75,10 @@ def main() -> None:
         sys.exit(f"Eroare: rularea '{args.run_name}' este incompletă "
                  f"(lipsește config.json sau model.keras în {run_dir}). "
                  "Antrenarea a fost probabil întreruptă; rulați-o din nou.")
+    if args.curves_only:
+        write_curves(run_dir, config.PROJECT_ROOT / args.out / args.run_name, args.run_name)
+        print(f"curbe salvate in {run_dir} si {config.PROJECT_ROOT / args.out / args.run_name}")
+        return
     run_cfg = json.loads((run_dir / "config.json").read_text(encoding="utf-8"))
     trained_crop = not run_cfg.get("no_crop", False)
     crop = trained_crop and not args.no_crop
@@ -73,8 +100,7 @@ def main() -> None:
     plot_confusion_matrix(y_true, y_pred, run_dir / names[2])
     plot_misclassified(test_df, y_true, y_pred, probs, run_dir / names[3], crop=crop)
     if not suffix:  # curbele nu depind de decupare
-        history = load_history(run_dir)
-        plot_history(history, run_dir / "curves.png", f"Curbe de antrenare: {args.run_name}")
+        plot_history(load_history(run_dir), run_dir / "curves.png", curves_title(args.run_name))
         names.append("curves.png")
 
     out_dir = config.PROJECT_ROOT / args.out / args.run_name

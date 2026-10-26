@@ -56,6 +56,18 @@ def test_unfreeze_top_keeps_batchnorm_frozen():
     )
 
 
+def test_unfreeze_top_conv4_and_conv5_keeps_batchnorm_frozen():
+    model = build_resnet50(input_size=SIZE, weights=None)
+    assert unfreeze_top(model, prefix=("conv4_", "conv5_")) > unfreeze_top(model)
+    unfreeze_top(model, prefix=("conv4_", "conv5_"))
+    base = model.get_layer("resnet50")
+    conv4 = [l for l in base.layers if l.name.startswith("conv4_") and l.weights
+             and not isinstance(l, layers.BatchNormalization)]
+    assert conv4 and all(l.trainable for l in conv4)
+    assert all(not l.trainable for l in base.layers if isinstance(l, layers.BatchNormalization))
+    assert all(not l.trainable for l in base.layers if l.name.startswith("conv3_"))
+
+
 def test_save_and_reload_same_predictions(shared_model, tmp_path):
     x = np.random.default_rng(2).random((2, SIZE, SIZE, 3), dtype="float32")
     before = shared_model.predict(x, verbose=0)
