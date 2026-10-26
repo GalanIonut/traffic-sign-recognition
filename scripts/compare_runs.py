@@ -1,11 +1,12 @@
 """Compara run-urile din runs/: tabel CSV, figura de validare si export de figuri pentru slide.
 
-Dupa comparatie copiaza in reports/figures/ (daca exista in --out) figurile de prezentare:
-m4_curves_baseline.png, m4_curves_no_reg.png, m4_confusion_baseline.png,
-m4_misclassified_baseline.png.
+Doar cu --out reports/m4 (implicit) copiaza in reports/figures/ (daca exista) figurile de
+prezentare: m4_curves_baseline.png, m4_curves_no_reg.png, m4_confusion_baseline.png,
+m4_misclassified_baseline.png. Cu alt --out nu se copiaza nimic (nu suprascrie figurile M4).
 """
 import argparse
 import shutil
+from pathlib import Path
 
 import matplotlib
 
@@ -51,6 +52,19 @@ def plot_comparison(run_dirs, fig_path) -> None:
     plt.close(fig)
 
 
+def export_m4_figures(out_dir, figures_dir=None) -> list[Path]:
+    """Copiaza figurile m4_* in figures_dir, dar doar daca out_dir este reports/m4."""
+    out_dir = Path(out_dir)
+    if out_dir.resolve() != (config.PROJECT_ROOT / "reports" / "m4").resolve():
+        return []
+    figures_dir = Path(figures_dir or config.FIGURES_DIR)
+    copied = []
+    for run, src, dst in EXPORTS:
+        if (out_dir / run / src).exists():
+            copied.append(Path(shutil.copy2(out_dir / run / src, figures_dir / dst)))
+    return copied
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default="reports/m4", help="folderul cu rezultate")
@@ -75,9 +89,7 @@ def main() -> None:
     fig_path = config.PROJECT_ROOT / args.figure
     fig_path.parent.mkdir(parents=True, exist_ok=True)
     plot_comparison(run_dirs, fig_path)
-    for run, src, dst in EXPORTS:
-        if (out_dir / run / src).exists():
-            shutil.copy2(out_dir / run / src, config.FIGURES_DIR / dst)
+    export_m4_figures(out_dir)
     print(table.to_string(index=False))
     print(f"salvat in {csv_path} si {fig_path}")
 
