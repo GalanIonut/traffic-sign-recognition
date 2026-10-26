@@ -113,3 +113,60 @@ def test_title_is_truthful_both_ways(entries):
     t.loc[1, "test_accuracy"] = 0.98
     lose = comparison_title(t)
     assert lose.startswith("CNN-ul propriu câștigă 1,0 pp") and "mai mare" in lose
+
+
+def _row(model, acc, mb, minutes):
+    return {"model": model, "test_accuracy": acc, "model_mb": mb, "train_minutes": minutes}
+
+
+def _tbl(res_acc, res_mb, res_min):
+    return pd.DataFrame([_row("cnn", 0.99, 10.0, 10.0), _row("resnet", res_acc, res_mb, res_min)])
+
+
+def test_title_combinations():
+    from traffic_signs.comparison import comparison_title
+    # ResNet câștigă, dar mai mare și mai lent
+    assert comparison_title(_tbl(0.995, 100.0, 40.0)) == (
+        "ResNet50 câștigă 0,5 pp acuratețe, dar e de 10× mai mare și de 4,0× mai lent la antrenare")
+    # ResNet câștigă și e mai mic și mai rapid -> fără „dar”
+    t = comparison_title(_tbl(0.995, 5.0, 5.0))
+    assert ", și e de 2,0× mai mic și de 2,0× mai rapid la antrenare" in t and "dar" not in t
+    # mixt: mai mic, dar mai lent
+    t = comparison_title(_tbl(0.995, 5.0, 40.0))
+    assert ", dar e de 2,0× mai mic și de 4,0× mai lent la antrenare" in t
+    # aceeași mărime
+    t = comparison_title(_tbl(0.995, 10.0, 40.0))
+    assert "are aceeași mărime, iar e de 4,0× mai lent" in t
+    # CNN câștigă
+    t = comparison_title(_tbl(0.98, 100.0, 40.0))
+    assert t.startswith("CNN-ul propriu câștigă 1,0 pp acuratețe; ResNet50 e de 10× mai mare")
+    # egalitate
+    assert comparison_title(_tbl(0.99, 100.0, 40.0)).startswith(
+        "ResNet50 și CNN-ul au aceeași acuratețe;")
+    # diferență foarte mică: 2 zecimale
+    assert "câștigă 0,05 pp" in comparison_title(_tbl(0.9905, 100.0, 40.0))
+
+
+def test_rows_selected_by_label(entries, tmp_path):
+    from traffic_signs.comparison import comparison_title
+    t = model_comparison_table(entries)
+    swapped = t.iloc[::-1].reset_index(drop=True)
+    assert comparison_title(t, "cnn", "resnet") == comparison_title(swapped, "cnn", "resnet")
+    plot_cnn_vs_resnet(swapped, tmp_path / "s.png", "cnn", "resnet")
+    assert (tmp_path / "s.png").exists()
+    with pytest.raises(ValueError, match="lipsește"):
+        comparison_title(t, "cnn", "nope")
+    with pytest.raises(ValueError, match="lipsește"):
+        plot_cnn_vs_resnet(t, tmp_path / "x.png", "nope", "resnet")
+
+
+def test_default_figure_path_and_relative_out(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "FIGURES_DIR", tmp_path / "figures")
+    monkeypatch.setattr(config, "PROJECT_ROOT", tmp_path)
+    mod = _load_script()
+    assert mod.default_figure_path("reports/m4").name == "m4_val_accuracy_comparison.png"
+    assert mod.default_figure_path("reports/m5").name == "m5_val_accuracy_comparison.png"
+    (tmp_path / "figures").mkdir()
+    _populate(tmp_path / "reports" / "m4")
+    assert len(mod.export_m4_figures("reports/m4")) == 4  # cale relativa
+    assert mod.export_m4_figures("reports/m5") == []

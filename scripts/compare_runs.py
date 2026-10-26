@@ -52,9 +52,19 @@ def plot_comparison(run_dirs, fig_path) -> None:
     plt.close(fig)
 
 
+def default_figure_path(out_dir) -> Path:
+    """Figura de validare: numele M4 doar pentru reports/m4, altfel dupa folderul --out."""
+    out_dir = config.PROJECT_ROOT / out_dir
+    if out_dir.resolve() == (config.PROJECT_ROOT / "reports" / "m4").resolve():
+        name = "m4"
+    else:
+        name = out_dir.name
+    return config.FIGURES_DIR / f"{name}_val_accuracy_comparison.png"
+
+
 def export_m4_figures(out_dir, figures_dir=None) -> list[Path]:
     """Copiaza figurile m4_* in figures_dir, dar doar daca out_dir este reports/m4."""
-    out_dir = Path(out_dir)
+    out_dir = config.PROJECT_ROOT / out_dir  # cale relativa -> fata de PROJECT_ROOT
     if out_dir.resolve() != (config.PROJECT_ROOT / "reports" / "m4").resolve():
         return []
     figures_dir = Path(figures_dir or config.FIGURES_DIR)
@@ -68,7 +78,9 @@ def export_m4_figures(out_dir, figures_dir=None) -> list[Path]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default="reports/m4", help="folderul cu rezultate")
-    parser.add_argument("--figure", default="reports/figures/m4_val_accuracy_comparison.png")
+    parser.add_argument("--figure", default=None,
+                        help="implicit: m4_val_accuracy_comparison.png pentru reports/m4, "
+                             "altfel <folder>_val_accuracy_comparison.png")
     parser.add_argument("--runs", nargs="*", help="doar aceste run-uri (implicit toate)")
     args = parser.parse_args()
 
@@ -86,7 +98,8 @@ def main() -> None:
     csv_path = out_dir / "comparison.csv"
     table.to_csv(csv_path, index=False)
 
-    fig_path = config.PROJECT_ROOT / args.figure
+    fig_path = (config.PROJECT_ROOT / args.figure if args.figure
+                else default_figure_path(args.out))
     fig_path.parent.mkdir(parents=True, exist_ok=True)
     plot_comparison(run_dirs, fig_path)
     export_m4_figures(out_dir)

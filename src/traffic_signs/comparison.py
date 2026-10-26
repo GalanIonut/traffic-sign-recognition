@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.ticker import FuncFormatter
 
-from traffic_signs.presentation import BG, BLUE, GRID, INK, INK2, ORANGE, W, H, _save, _style_axes, pct
+from traffic_signs.presentation import BG, BLUE, GRID, INK, INK2, ORANGE, W, H, _save, _style_axes
 
 COLUMNS = ["model", "test_accuracy", "f1_macro", "params", "trainable_params", "model_mb",
            "train_minutes", "epochs_run", "ms_per_image_batch", "ms_per_image_single"]
@@ -53,41 +53,60 @@ def _times(ratio: float) -> str:
     return f"{ratio:.0f}×" if ratio >= 10 else f"{_ro(ratio)}×"
 
 
-def comparison_title(table: pd.DataFrame) -> str:
-    """Titlu-concluzie calculat din cifre (rândul 0 = CNN, rândul 1 = ResNet50)."""
-    cnn, res = table.iloc[0], table.iloc[1]
+def _pick(table: pd.DataFrame, label: str) -> pd.Series:
+    """Rândul modelului după etichetă; ValueError dacă lipsește."""
+    rows = table[table["model"] == label]
+    if rows.empty:
+        raise ValueError(f"Modelul '{label}' lipsește din tabel (există: {list(table['model'])}).")
+    return rows.iloc[0]
+
+
+def comparison_title(table: pd.DataFrame, cnn_label: str = "cnn",
+                     resnet_label: str = "resnet") -> str:
+    """Titlu-concluzie calculat din cifre, adevărat oricare model câștigă."""
+    cnn, res = _pick(table, cnn_label), _pick(table, resnet_label)
     diff_pp = (res["test_accuracy"] - cnn["test_accuracy"]) * 100
-    if abs(diff_pp) < 0.05:
+    dec = 2 if abs(diff_pp) < 0.5 else 1  # diferențe mici: 2 zecimale
+    if abs(diff_pp) < 0.005:
         head = "ResNet50 și CNN-ul au aceeași acuratețe"
     elif diff_pp > 0:
-        head = f"ResNet50 câștigă {_ro(diff_pp)} pp acuratețe"
+        head = f"ResNet50 câștigă {_ro(diff_pp, dec)} pp acuratețe"
     else:
-        head = f"CNN-ul propriu câștigă {_ro(-diff_pp)} pp acuratețe"
+        head = f"CNN-ul propriu câștigă {_ro(-diff_pp, dec)} pp acuratețe"
 
     size = res["model_mb"] / cnn["model_mb"]
     time = res["train_minutes"] / cnn["train_minutes"]
     size_txt = (f"e de {_times(size)} mai mare" if size >= 1.05 else
                 f"e de {_times(1 / size)} mai mic" if size <= 1 / 1.05 else "are aceeași mărime")
-    time_txt = (f"de {_times(time)} mai lent la antrenare" if time >= 1.05 else
-                f"de {_times(1 / time)} mai rapid la antrenare" if time <= 1 / 1.05
-                else "la fel de rapid la antrenare")
-    if diff_pp > 0.05:
-        return f"{head}, dar {size_txt} și {time_txt}"
-    return f"{head}; ResNet50 {size_txt} și {time_txt}"
+    time_txt = (f"e de {_times(time)} mai lent la antrenare" if time >= 1.05 else
+                f"e de {_times(1 / time)} mai rapid la antrenare" if time <= 1 / 1.05
+                else "se antrenează în același timp")
+    if size_txt.startswith("e de") and time_txt.startswith("e de"):
+        tail = f"{size_txt} și {time_txt[2:].strip()}"  # „e de 18× mai mare și de 3× mai lent…”
+    else:
+        tail = f"{size_txt}, iar {time_txt}"
+    worse = size >= 1.05 or time >= 1.05  # ResNet50 pierde la cel puțin un cost
+    if diff_pp > 0.005:
+        return f"{head}, {'dar' if worse else 'și'} {tail}"
+    return f"{head}; ResNet50 {tail}"
 
 
 PANELS = [
-    ("test_accuracy", "Acuratețe pe test (%)", lambda v: pct(v, 2)),
+    ("error_pct", "Eroare pe test (%)", lambda v: _ro(v, 2) + "%"),
     ("train_minutes", "Timp de antrenare (minute)", lambda v: _ro(v, 1)),
     ("model_mb", "Mărimea modelului (MB)", lambda v: _ro(v, 1)),
     ("ms_per_image_batch", "Timp de inferență (ms/imagine, batch)", lambda v: _ro(v, 2)),
 ]
 
 
-def plot_cnn_vs_resnet(table: pd.DataFrame, out_path: Path) -> None:
-    """Patru panouri de bare orizontale, fiecare cu axa ei (rând 0 = CNN, rând 1 = ResNet50)."""
+def plot_cnn_vs_resnet(table: pd.DataFrame, out_path: Path, cnn_label: str = "cnn",
+                       resnet_label: str = "resnet") -> None:
+    """Patru panouri de bare orizontale, fiecare cu axa ei; rândurile se aleg după etichetă."""
+    title_txt = comparison_title(table, cnn_label, resnet_label)
+    table = pd.DataFrame([_pick(table, cnn_label), _pick(table, resnet_label)]).reset_index(drop=True)
+    table["error_pct"] = (1 - table["test_accuracy"].astype(float)) * 100
     fig = plt.figure(figsize=(W, H), facecolor=BG)
-    fig.text(0.6 / W, 1 - 0.75 / H, comparison_title(table), fontsize=20, fontweight="bold",
+    fig.text(0.6 / W, 1 - 0.75 / H, title_txt, fontsize=20, fontweight="bold",
              color=INK, ha="left", va="center")
     fig.text(0.6 / W, 1 - 1.35 / H, "Același set de test (12.630 de imagini, semne decupate)",
              fontsize=15, color=INK2, ha="left", va="center")
@@ -104,11 +123,7 @@ def plot_cnn_vs_resnet(table: pd.DataFrame, out_path: Path) -> None:
         ys = list(range(n))[::-1]
         ax.barh(ys, vals, height=0.55, color=colors, zorder=2)
         top = max(vals) * 1.3 if max(vals) > 0 else 1
-        if col == "test_accuracy":
-            top = 1.35
-            ax.set_xticks([0, 0.5, 1.0], ["0%", "50%", "100%"])
-        else:
-            ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: _ro(v, 0 if v == int(v) else 1)))
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: _ro(v, 0 if v == int(v) else 1)))
         for y, v in zip(ys, vals):
             ax.text(v + top * 0.015, y, fmt(v), fontsize=16, fontweight="bold", color=INK,
                     ha="left", va="center", zorder=3)
