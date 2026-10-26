@@ -40,3 +40,15 @@ def test_class_weights_balanced():
     equal = compute_class_weights([0, 1, 2] * 5)
     assert all(abs(v - 1.0) < 1e-9 for v in equal.values())
     assert all(type(k) is int and type(v) is float for k, v in w.items())
+
+
+def test_dark_image_not_blacked_out():
+    x = np.full((64, 48, 48, 3), 0.2, dtype=np.float32)
+    y = build_augmentation()(x, training=True).numpy()
+    assert all(img.max() > 0.05 for img in y)
+
+
+def test_brightness_parameter():
+    model = build_augmentation(brightness=0.05)
+    layer = next(l for l in model.layers if isinstance(l, keras.layers.RandomBrightness))
+    assert tuple(layer.factor) == (-0.05, 0.05)
