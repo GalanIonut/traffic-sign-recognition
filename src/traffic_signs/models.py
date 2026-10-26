@@ -51,22 +51,14 @@ def model_summary_text(model: keras.Model) -> str:
 # (eticheta in legenda, culoare caseta) per tip de strat
 _KINDS = {
     "input": ("Intrare", "#d9d9d9"),
-    "conv": ("Convolutie", "#9ecae1"),
+    "conv": ("Convoluție", "#9ecae1"),
     "pool": ("Max pooling", "#fdd0a2"),
     "norm": ("Normalizare (BatchNorm)", "#c7e9c0"),
     "flatten": ("Flatten", "#fff2a8"),
     "dense": ("Dens", "#bcbddc"),
     "dropout": ("Dropout", "#fcbba1"),
 }
-_TYPE_NAMES = {
-    "input": "Intrare",
-    "conv": "Conv2D 3×3, same",
-    "pool": "MaxPooling2D 2×2",
-    "norm": "BatchNormalization",
-    "flatten": "Flatten",
-    "dense": "Dense",
-    "dropout": "Dropout",
-}
+_ACT_NAMES = {"relu": "ReLU", "softmax": "softmax"}
 
 
 def _kind(layer: keras.layers.Layer) -> str:
@@ -85,70 +77,106 @@ def _kind(layer: keras.layers.Layer) -> str:
 
 
 def _shape_text(layer: keras.layers.Layer) -> str:
-    shape = layer.output.shape[1:]
-    return "×".join(str(d) for d in shape)
+    return "×".join(str(d) for d in layer.output.shape[1:])
+
+
+def _title(layer: keras.layers.Layer, kind: str) -> str:
+    if kind == "input":
+        return "Imagine RGB"
+    if kind == "conv":
+        return f"Conv2D {layer.filters}×(3×3)"
+    if kind == "pool":
+        return "MaxPooling2D 2×2"
+    if kind == "norm":
+        return "BatchNormalization"
+    if kind == "dense":
+        return f"Dense {layer.units}"
+    if kind == "dropout":
+        return f"Dropout (rată {layer.rate:g})"
+    return "Flatten"
+
+
+def _column(name: str) -> int:
+    """Coloana diagramei: 0 intrare, 1-3 blocurile convolutionale, 4 clasificator."""
+    if name == "input":
+        return 0
+    m = re.match(r"block(\d)_", name)
+    return int(m.group(1)) if m else 4
 
 
 def plot_architecture(model: keras.Model, out_path: Path) -> None:
-    """Diagrama verticala: o caseta per strat (tip, forma iesirii, activare)."""
-    items = []
+    """Diagrama orizontala (16:9): coloane Intrare | Bloc 1-3 | Clasificator."""
+    heads = ["Intrare", "Bloc 1", "Bloc 2", "Bloc 3", "Clasificator"]
+    cols: list[list] = [[] for _ in heads]
     for layer in model.layers:
         kind = _kind(layer)
-        title = _TYPE_NAMES[kind]
-        if kind == "conv":
-            title = f"Conv2D {layer.filters} filtre 3×3, same"
-        elif kind == "dense":
-            title = f"Dense {layer.units} neuroni"
-        elif kind == "dropout":
-            title = f"Dropout (rata {layer.rate:g})"
         act = getattr(layer, "activation", None)
-        act_name = act.__name__ if act is not None and act.__name__ != "linear" else None
-        detail = f"iesire: {_shape_text(layer)}"
-        if act_name:
-            detail += f"   |   activare: {act_name}"
-        items.append((layer.name, kind, title, detail))
+        act_name = act.__name__ if act is not None else "linear"
+        act_text = (
+            f"activare: {_ACT_NAMES.get(act_name, act_name)}" if act_name != "linear" else None
+        )
+        cols[_column(layer.name)].append(
+            (kind, _title(layer, kind), f"ieșire: {_shape_text(layer)}", act_text)
+        )
 
-    n = len(items)
-    step, box_h, box_w = 1.0, 0.7, 7.0
-    fig_h = n * step * 0.62 + 3.8
-    fig, ax = plt.subplots(figsize=(8.5, fig_h))
-    ax.set_xlim(-box_w / 2 - 1.2, box_w / 2 + 1.2)
-    ax.set_ylim(-(n - 1) * step - 2.8, 1.9)
+    col_step, box_w, box_h, row_step = 3.2, 2.85, 1.2, 1.5
+    fig, ax = plt.subplots(figsize=(16, 9))
+    ax.set_xlim(-box_w / 2 - 0.1, 4 * col_step + box_w / 2 + 0.1)
+    ax.set_ylim(-3 * row_step - 2.4, 1.9)
     ax.axis("off")
 
-    for i, (name, kind, title, detail) in enumerate(items):
-        y = -i * step
-        color = _KINDS[kind][1]
-        ax.add_patch(
-            FancyBboxPatch(
-                (-box_w / 2, y - box_h / 2), box_w, box_h,
-                boxstyle="round,pad=0.02,rounding_size=0.12",
-                facecolor=color, edgecolor="#333333", linewidth=1.0,
-            )
-        )
-        ax.text(0, y + 0.14, title, ha="center", va="center", fontsize=11, fontweight="bold")
-        ax.text(0, y - 0.17, detail, ha="center", va="center", fontsize=9.5)
-        ax.text(-box_w / 2 - 0.1, y, name, ha="right", va="center", fontsize=8, color="#555555")
-        if i < n - 1:
+    boxes = []  # (x, y) centrul fiecarei casete, pe coloane
+    for c, items in enumerate(cols):
+        x = c * col_step
+        ax.text(x, 0.95, heads[c], ha="center", va="center", fontsize=15, fontweight="bold")
+        pos = []
+        for r, (kind, title, shape, act_text) in enumerate(items):
+            y = -r * row_step
             ax.add_patch(
-                FancyArrowPatch(
-                    (0, y - box_h / 2 - 0.02), (0, y - step + box_h / 2 + 0.02),
-                    arrowstyle="-|>", mutation_scale=10, color="#333333",
+                FancyBboxPatch(
+                    (x - box_w / 2, y - box_h / 2), box_w, box_h,
+                    boxstyle="round,pad=0.02,rounding_size=0.12",
+                    facecolor=_KINDS[kind][1], edgecolor="#333333", linewidth=1.2,
                 )
             )
+            lines = [(title, 13, "bold", 0.33), (shape, 12, "normal", 0.0)]
+            if act_text:
+                lines.append((act_text, 12, "normal", -0.33))
+            else:
+                lines = [(title, 13, "bold", 0.2), (shape, 12, "normal", -0.2)]
+            for text, size, weight, dy in lines:
+                ax.text(x, y + dy, text, ha="center", va="center", fontsize=size, fontweight=weight)
+            if r > 0:
+                ax.add_patch(
+                    FancyArrowPatch(
+                        (x, y + row_step - box_h / 2 - 0.02), (x, y + box_h / 2 + 0.02),
+                        arrowstyle="-|>", mutation_scale=16, color="#333333", linewidth=1.5,
+                    )
+                )
+            pos.append((x, y))
+        boxes.append(pos)
+    for c in range(len(cols) - 1):  # sageti intre coloane
+        (x0, y0), (x1, y1) = boxes[c][-1], boxes[c + 1][0]
+        ax.add_patch(
+            FancyArrowPatch(
+                (x0 + box_w / 2 + 0.02, y0), (x1 - box_w / 2 - 0.02, y1),
+                arrowstyle="-|>", mutation_scale=16, color="#333333", linewidth=1.5,
+            )
+        )
 
-    ax.text(0, 1.45, "Arhitectura CNN propriu", ha="center", fontsize=16, fontweight="bold")
+    mid = 2 * col_step
+    ax.text(mid, 1.75, "Arhitectura CNN propriu", ha="center", fontsize=20, fontweight="bold")
     ax.text(
-        0, 1.0, f"Total parametri: {model.count_params():,}".replace(",", "."),
-        ha="center", fontsize=11, color="#444444",
+        mid, 1.35, f"Total parametri: {model.count_params():,}".replace(",", "."),
+        ha="center", fontsize=14, color="#444444",
     )
-    used = [k for k in _KINDS if any(it[1] == k for it in items)]
+    used = [k for k in _KINDS if any(k == it[0] for col in cols for it in col)]
     handles = [
         Patch(facecolor=_KINDS[k][1], edgecolor="#333333", label=_KINDS[k][0]) for k in used
     ]
     ax.legend(
-        handles=handles, loc="lower center", ncol=3, fontsize=9, frameon=False,
-        bbox_to_anchor=(0.5, 0.01),
+        handles=handles, loc="lower center", ncol=len(handles), fontsize=12, frameon=False,
+        bbox_to_anchor=(0.5, 0.0), columnspacing=1.2, handlelength=1.4,
     )
 
     out_path = Path(out_path)
