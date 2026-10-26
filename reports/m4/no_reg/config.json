@@ -1,0 +1,14 @@
+{
+  "run_name": "no_reg",
+  "epochs": 30,
+  "no_crop": false,
+  "no_augment": true,
+  "dropout": 0.0,
+  "no_class_weights": false,
+  "epochs_run": 30,
+  "best_epoch": 30,
+  "best_val_loss": 0.06112575903534889,
+  "best_val_accuracy": 0.9904273748397827,
+  "train_seconds": 891.6,
+  "params": 1331275
+}

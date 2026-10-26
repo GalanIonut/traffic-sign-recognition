@@ -1,0 +1,14 @@
+{
+  "run_name": "baseline",
+  "epochs": 30,
+  "no_crop": false,
+  "no_augment": false,
+  "dropout": 0.5,
+  "no_class_weights": false,
+  "epochs_run": 30,
+  "best_epoch": 25,
+  "best_val_loss": 0.0076828706078231335,
+  "best_val_accuracy": 0.9986324906349182,
+  "train_seconds": 894.2,
+  "params": 1331275
+}

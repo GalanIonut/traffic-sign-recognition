@@ -15,14 +15,18 @@ class ClipToUnitRange(keras.layers.Layer):
         return keras.ops.clip(inputs, 0.0, 1.0)
 
 
-def build_augmentation(seed: int = SEED) -> keras.Sequential:
-    """Augmentari geometrice si de culoare; fara RandomFlip (semnele nu se oglindesc)."""
+def build_augmentation(seed: int = SEED, brightness: float = 0.1) -> keras.Sequential:
+    """Augmentari geometrice si de culoare; fara RandomFlip (semnele nu se oglindesc).
+
+    `brightness` este amplitudinea variatiei de luminozitate; valoare mica, ca
+    imaginile intunecate sa nu ajunga complet negre.
+    """
     return keras.Sequential(
         [
             keras.layers.RandomRotation(factor=15 / 360, fill_mode="nearest", seed=seed),
             keras.layers.RandomZoom(0.1, fill_mode="nearest", seed=seed + 1),
             keras.layers.RandomTranslation(0.1, 0.1, fill_mode="nearest", seed=seed + 2),
-            keras.layers.RandomBrightness(0.2, value_range=(0, 1), seed=seed + 3),
+            keras.layers.RandomBrightness(brightness, value_range=(0, 1), seed=seed + 3),
             keras.layers.RandomContrast(0.2, value_range=(0, 1), seed=seed + 4),
             ClipToUnitRange(),
         ],
