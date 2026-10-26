@@ -1,0 +1,27 @@
+# Documente de lucru: niciun .md nu e urmarit, cu exceptia README.md (livrabil)
+*.md
+!README.md
+
+# Setul de date (prea mare pentru git)
+archive/
+data/
+
+# Mediu Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Ponderi modele mari / rezultate de antrenare
+models/*.h5
+models/*.keras
+models/*.pt
+runs/
+
+# Sistem
+.DS_Store
+.~lock.*
+
+# Spatiu de lucru superpowers (ledger, rapoarte agenti)
+.superpowers/
