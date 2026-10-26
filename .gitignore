@@ -16,6 +16,7 @@ __pycache__/
 # Ponderi modele mari / rezultate de antrenare
 models/*.h5
 models/*.keras
+!models/cnn_*.keras
 models/*.pt
 runs/
 
