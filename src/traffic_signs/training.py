@@ -48,6 +48,7 @@ def train_model(model: keras.Model, train_ds: tf.data.Dataset, val_ds: tf.data.D
     history.insert(0, "epoch", range(1, len(history) + 1))
     history = history[["epoch", "loss", "accuracy", "val_loss", "val_accuracy",
                        "learning_rate"]]
+    history.to_csv(run_dir / "history.csv", index=False)  # epoci 1-based (CSVLogger e 0-based)
     best = int(history["val_loss"].idxmin())
     config = dict(run_config or {})
     config.update(

@@ -92,7 +92,7 @@ def _title(layer: keras.layers.Layer, kind: str) -> str:
     if kind == "dense":
         return f"Dense {layer.units}"
     if kind == "dropout":
-        return f"Dropout (rată {layer.rate:g})"
+        return f"Dropout (rată {layer.rate:g})".replace(".", ",")
     return "Flatten"
 
 

@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from traffic_signs.dataset import load_train_index
-from traffic_signs.evaluation import (compare_runs, compute_metrics,
+from traffic_signs.evaluation import (compare_runs, compute_metrics, load_history,
                                       plot_confusion_matrix, plot_history,
                                       plot_misclassified, predict_classes)
 from traffic_signs.models import build_cnn
@@ -62,3 +62,44 @@ def test_compare_runs(tmp_path):
     assert list(df["run"]) == ["a", "b"]
     assert df.loc[0, "test_accuracy"] == pytest.approx(0.95)
     assert np.isnan(df.loc[1, "test_accuracy"])
+
+
+def test_load_history_adds_one_to_zero_based(tmp_path):
+    zero = pd.DataFrame({"epoch": [0, 1, 2], "val_loss": [3.0, 2.0, 1.0]})
+    zero.to_csv(tmp_path / "history.csv", index=False)
+    assert list(load_history(tmp_path)["epoch"]) == [1, 2, 3]
+    one = pd.DataFrame({"epoch": [1, 2], "val_loss": [3.0, 2.0]})
+    one.to_csv(tmp_path / "history.csv", index=False)
+    assert list(load_history(tmp_path)["epoch"]) == [1, 2]
+
+
+def test_compare_runs_adds_crop_and_extra_metrics_rows(tmp_path):
+    d = tmp_path / "baseline"
+    d.mkdir()
+    (d / "config.json").write_text(json.dumps({"epochs_run": 5, "best_epoch": 3}))
+    (d / "metrics.json").write_text(json.dumps(
+        {"accuracy": 0.99, "f1_macro": 0.9, "crop": True, "ms_per_image_batch": 0.1}))
+    (d / "metrics_nocrop.json").write_text(json.dumps(
+        {"accuracy": 0.8, "f1_macro": 0.7, "crop": False, "ms_per_image_batch": 0.2}))
+    df = compare_runs([d])
+    assert list(df["run"]) == ["baseline", "baseline (nedecupat)"]
+    assert list(df["crop"]) == [True, False]
+    assert df.loc[1, "test_accuracy"] == pytest.approx(0.8)
+    assert df.loc[1, "ms_per_image_batch"] == pytest.approx(0.2)
+
+
+def test_misclassified_without_errors_writes_png(fake_gtsrb, tmp_path):
+    df = load_train_index(fake_gtsrb)
+    y = df.class_id.to_numpy()
+    probs = np.full((len(df), 43), 1 / 43)
+    plot_misclassified(df, y, y, probs, tmp_path / "none.png")
+    assert (tmp_path / "none.png").stat().st_size > 0
+
+
+def test_misclassified_limits_two_per_pair(fake_gtsrb, tmp_path):
+    from traffic_signs.evaluation import select_misclassified
+    y_true = np.array([0, 0, 0, 1, 1])
+    y_pred = np.array([1, 1, 1, 0, 1])
+    conf = np.array([0.9, 0.8, 0.95, 0.7, 0.99])
+    idx = select_misclassified(y_true, y_pred, conf, n=16, per_pair=2)
+    assert list(idx) == [2, 0, 3]

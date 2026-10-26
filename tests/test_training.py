@@ -2,6 +2,7 @@ import json
 
 import keras
 import numpy as np
+import pandas as pd
 import pytest
 
 from traffic_signs.dataset import load_train_index
@@ -40,6 +41,14 @@ def test_train_model_writes_run_files(trained):
     assert list(history["epoch"]) == [1, 2]
     for col in ("loss", "accuracy", "val_loss", "val_accuracy", "learning_rate"):
         assert col in history.columns
+
+
+def test_history_csv_is_one_based_and_matches_best_epoch(trained):
+    _, history, run_dir, _ = trained
+    csv = pd.read_csv(run_dir / "history.csv")
+    assert list(csv["epoch"]) == [1, 2]
+    cfg = json.loads((run_dir / "config.json").read_text(encoding="utf-8"))
+    assert cfg["best_epoch"] == csv.loc[csv["val_loss"].idxmin(), "epoch"]
 
 
 def test_saved_model_reloads_same_predictions(trained):
