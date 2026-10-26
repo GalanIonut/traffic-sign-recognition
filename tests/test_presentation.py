@@ -112,3 +112,32 @@ def test_plot_dataset(tmp_path):
     out = tmp_path / "g.png"
     p.plot_dataset(stats, metas, out)
     _assert_png(out)
+
+
+def test_select_examples_foloseste_probs_pentru_greseli():
+    y_true = np.array([0, 0, 0, 0, 0, 0, 1, 1])
+    y_pred = np.array([0, 0, 0, 0, 1, 1, 0, 1])
+    probs = np.full((8, 2), 0.5)
+    probs[4] = [0.1, 0.9]  # greșită, încredere 0,9 (cea mai mare)
+    probs[5] = [0.4, 0.6]  # greșită, încredere 0,6 (cea mai mică)
+    probs[6] = [0.7, 0.3]  # greșită, încredere 0,7
+    idx = p.select_examples(y_true, y_pred, probs, n_correct=2, n_wrong=2, seed=1)
+    assert idx[2:] == [5, 4]
+
+
+def test_select_examples_putine_greseli():
+    y_true = np.array([0, 1, 0, 1, 0])
+    y_pred = np.array([0, 1, 0, 1, 1])
+    probs = np.full((5, 2), 0.5)
+    idx = p.select_examples(y_true, y_pred, probs, n_correct=3, n_wrong=2, seed=0)
+    assert len(idx) == 4 and idx[-1] == 4
+
+
+def test_select_examples_eligible_restrange_corectele():
+    y_true = np.zeros(10, dtype=int)
+    y_pred = np.zeros(10, dtype=int)
+    y_pred[9] = 1
+    probs = np.full((10, 2), 0.5)
+    mask = np.arange(10) >= 5
+    idx = p.select_examples(y_true, y_pred, probs, n_correct=3, n_wrong=1, eligible=mask)
+    assert all(i >= 5 for i in idx[:3])

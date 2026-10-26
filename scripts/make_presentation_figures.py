@@ -38,14 +38,24 @@ def main(out_dir: Path = FIGURES_DIR) -> None:
     # 1. Pipeline: un exemplu bine clasificat (Stop, imagine mare, încredere mare)
     conf = probs.max(axis=1)
     ok = np.flatnonzero((y_true == 14) & (y_pred == 14) & (conf > 0.99) & (test["width"].to_numpy() >= 60))
+    if len(ok) == 0:  # rezervă: orice exemplu corect și sigur
+        ok = np.flatnonzero((y_true == y_pred) & (conf > 0.99))
     row = test.iloc[int(ok[0])]
+    ex_class = int(y_true[ok[0]])
     full = load_image(row["path"])
     top3 = [(class_name(c), p) for c, p in pres.top_k(probs[ok[0]], 3)]
     pres.plot_pipeline(full, crop_roi(full, *roi_of(row)), prepare(row["path"], IMG_SIZE_CNN, roi_of(row)),
-                       top3, class_name(14), int(model.count_params()), out_dir / "pres_pipeline.png")
+                       top3, class_name(ex_class), int(model.count_params()), out_dir / "pres_pipeline.png")
 
     # 2. Predicții: 6 corecte + 2 greșite
-    idx = pres.select_examples(y_true, y_pred, probs, 6, 2, seed=42)
+    # exemple corecte suficient de luminoase (verificăm un eșantion determinist)
+    rng = np.random.default_rng(42)
+    pool = rng.choice(np.flatnonzero(y_true == y_pred), size=300, replace=False)
+    bright = np.zeros(len(test), dtype=bool)
+    for i in pool:
+        r = test.iloc[i]
+        bright[i] = prepare(r["path"], IMG_SIZE_CNN, roi_of(r)).mean() > 0.35
+    idx = pres.select_examples(y_true, y_pred, probs, 6, 2, seed=42, eligible=bright)
     items = []
     for i in idx:
         r = test.iloc[i]
@@ -57,8 +67,9 @@ def main(out_dir: Path = FIGURES_DIR) -> None:
           "| medie corecte:", conf[y_true == y_pred].mean(), "| medie greșite:", conf[y_true != y_pred].mean())
     pres.plot_predictions(
         items, out_dir / "pres_predictions.png",
-        "Când are dreptate, modelul este aproape sigur pe răspuns",
-        "Opt exemple din setul de test: probabilitățile celor mai probabile 3 semne")
+        "Când are dreptate, modelul e aproape sigur; când greșește, uneori șovăie",
+        f"Încredere medie pe tot setul de test: {pres.pct(conf[y_true == y_pred].mean())} când răspunde corect, "
+        f"{pres.pct(conf[y_true != y_pred].mean())} când greșește")
 
     # 3. Acuratețea pe clasă
     per_class = pd.read_csv(REPORTS / "baseline" / "per_class.csv")

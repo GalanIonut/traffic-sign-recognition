@@ -83,15 +83,32 @@ def top_confused_pairs(y_true, y_pred, k: int = 5) -> list[tuple[int, int, int, 
 
 
 def select_examples(y_true, y_pred, probs, n_correct: int = 6, n_wrong: int = 2,
-                    seed: int = 42) -> list[int]:
-    """Indici determiniști: n_correct predicții corecte, apoi n_wrong greșite."""
-    y_true, y_pred = np.asarray(y_true), np.asarray(y_pred)
+                    seed: int = 42, eligible=None) -> list[int]:
+    """Indici determiniști: n_correct predicții corecte, apoi n_wrong greșite.
+
+    Greșitele: prima cu cea mai mică încredere, a doua cu cea mai mare (restul, aleatoare).
+    `eligible` (mască booleană, opțional) restrânge alegerea exemplelor corecte.
+    """
+    y_true, y_pred, probs = np.asarray(y_true), np.asarray(y_pred), np.asarray(probs)
     rng = np.random.default_rng(seed)
-    right = np.flatnonzero(y_true == y_pred)
+    ok = y_true == y_pred
+    if eligible is not None:
+        ok &= np.asarray(eligible, dtype=bool)
+    right = np.flatnonzero(ok)
     wrong = np.flatnonzero(y_true != y_pred)
     pick_r = rng.choice(right, size=min(n_correct, len(right)), replace=False)
-    pick_w = rng.choice(wrong, size=min(n_wrong, len(wrong)), replace=False)
-    return [int(i) for i in pick_r] + [int(i) for i in pick_w]
+    conf = probs[wrong, y_pred[wrong]]
+    order = wrong[np.argsort(conf, kind="stable")]
+    pick_w: list[int] = []
+    for cand in (order[:1], order[::-1][:1]):  # cea mai nesigură, apoi cea mai sigură
+        for i in cand:
+            if int(i) not in pick_w and len(pick_w) < n_wrong:
+                pick_w.append(int(i))
+    rest = [int(i) for i in wrong if int(i) not in pick_w]
+    extra = n_wrong - len(pick_w)
+    if extra > 0 and rest:
+        pick_w += [int(i) for i in rng.choice(rest, size=min(extra, len(rest)), replace=False)]
+    return [int(i) for i in pick_r] + pick_w
 
 
 # --- Helpere de desen ---
@@ -143,8 +160,9 @@ def _hbars(ax, items, x, y_top, width, bar_h=0.26, row_h=0.62, label_size=13.5,
     for i, (name, p, color) in enumerate(items):
         y = y_top - i * row_h
         ax.text(x, y, name, fontsize=label_size, color=INK, ha="left", va="bottom")
-        w = max(p, 0.004) * width * scale_frac
-        ax.add_patch(Rectangle((x, y - bar_h - 0.04), w, bar_h, fc=color, ec="none", zorder=2))
+        w = p * width * scale_frac
+        if p >= 0.005:  # sub 0,5% nu desenăm bara
+            ax.add_patch(Rectangle((x, y - bar_h - 0.04), w, bar_h, fc=color, ec="none", zorder=2))
         label = "<1%" if p < 0.005 else pct(p, 0)
         ax.text(x + w + 0.08, y - 0.04 - bar_h / 2, label, fontsize=value_size,
                 color=INK, ha="left", va="center")
@@ -334,7 +352,8 @@ def plot_overfitting(base: pd.DataFrame, no_reg: pd.DataFrame, out_path: Path,
              "Fără regularizare, modelul «tocește» datele de antrenare",
              fontsize=23, fontweight="bold", color=INK, ha="left", va="center")
     fig.text(0.6 / W, 1 - 1.35 / H,
-             f"Fără regularizare, antrenarea ajunge la 100%, dar validarea rămâne cu {gap_noreg:.1f} puncte mai jos".replace(".", ","),
+             f"Fără regularizare, antrenarea ajunge la {pct(no_reg['accuracy'].iloc[-1]).replace(',0%', '%')}, dar "
+             f"validarea rămâne cu {f'{gap_noreg:.1f}'.replace('.', ',')} puncte mai jos",
              fontsize=15, color=INK2, ha="left", va="center")
     for ax, hist, name in ((axes[0], base, "De bază (cu regularizare)"),
                            (axes[1], no_reg, "Fără regularizare")):
