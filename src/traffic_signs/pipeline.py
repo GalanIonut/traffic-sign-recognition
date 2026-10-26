@@ -10,8 +10,13 @@ from traffic_signs.preprocessing import prepare
 
 def make_dataset(df: pd.DataFrame, image_size: int, batch_size: int = BATCH_SIZE,
                  training: bool = False, crop: bool = True,
-                 seed: int = SEED) -> tf.data.Dataset:
-    """Dataset (imagini float32 in [0,1], etichete one-hot); ordine din df daca nu antrenam."""
+                 seed: int = SEED, augment: bool | None = None) -> tf.data.Dataset:
+    """Dataset (imagini float32 in [0,1], etichete one-hot); ordine din df daca nu antrenam.
+
+    `training` controleaza amestecarea; `augment` (implicit = `training`) augmentarea.
+    """
+    if augment is None:
+        augment = training
 
     def load(path, x1, y1, x2, y2):
         # Ruleaza in NumPy/Pillow; calea ajunge ca bytes
@@ -35,8 +40,8 @@ def make_dataset(df: pd.DataFrame, image_size: int, batch_size: int = BATCH_SIZE
         ds = ds.shuffle(len(df), seed=seed, reshuffle_each_iteration=True)
     ds = ds.map(load_tf, num_parallel_calls=tf.data.AUTOTUNE, deterministic=True)
     ds = ds.batch(batch_size)
-    if training:
-        augment = build_augmentation(seed)  # o singura data pe dataset
-        ds = ds.map(lambda x, y: (augment(x, training=True), y),
+    if augment:
+        augmenter = build_augmentation(seed)  # o singura data pe dataset
+        ds = ds.map(lambda x, y: (augmenter(x, training=True), y),
                     num_parallel_calls=tf.data.AUTOTUNE)
     return ds.prefetch(tf.data.AUTOTUNE)
