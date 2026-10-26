@@ -1,40 +1,83 @@
-"""Compara toate run-urile din runs/: tabel CSV si curbele de acuratete pe validare."""
+"""Compara run-urile din runs/: tabel CSV, figura de validare si export de figuri pentru slide.
+
+Dupa comparatie copiaza in reports/figures/ (daca exista in --out) figurile de prezentare:
+m4_curves_baseline.png, m4_curves_no_reg.png, m4_confusion_baseline.png,
+m4_misclassified_baseline.png.
+"""
+import argparse
+import shutil
+
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import pandas as pd
+from matplotlib.ticker import MaxNLocator
 
 from traffic_signs import config
-from traffic_signs.evaluation import DPI, FONT, compare_runs
+from traffic_signs.evaluation import DPI, FONT, compare_runs, load_history
+
+# id run -> eticheta in romana; run-urile necunoscute isi pastreaza numele
+LABELS = {"baseline": "de bază", "no_reg": "fără regularizare", "no_crop": "fără decupare*"}
+EXPORTS = [("baseline", "curves.png", "m4_curves_baseline.png"),
+           ("no_reg", "curves.png", "m4_curves_no_reg.png"),
+           ("baseline", "confusion_matrix.png", "m4_confusion_baseline.png"),
+           ("baseline", "misclassified.png", "m4_misclassified_baseline.png")]
+
+
+def plot_comparison(run_dirs, fig_path) -> None:
+    """Doua panouri: acuratete pe validare (zoom 0,9-1,0) si pierdere pe validare (log)."""
+    fig, axes = plt.subplots(1, 2, figsize=(16, 7))
+    for d in run_dirs:
+        h = load_history(d)
+        label = LABELS.get(d.name, d.name)
+        for ax, key in zip(axes, ("val_accuracy", "val_loss")):
+            ax.plot(h["epoch"], h[key], linewidth=2.5, label=label)
+    axes[0].set_ylim(0.9, 1.0)
+    axes[0].set_ylabel("Acuratețe pe validare", fontsize=FONT)
+    axes[1].set_yscale("log")
+    axes[1].set_ylabel("Pierdere pe validare (scară logaritmică)", fontsize=FONT)
+    for ax in axes:
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax.set_xlabel("Epocă", fontsize=FONT)
+        ax.tick_params(labelsize=FONT - 2)
+        ax.grid(alpha=0.3)
+    axes[0].legend(fontsize=FONT - 2, loc="lower right")
+    fig.suptitle("Comparație între run-uri", fontsize=FONT + 4)
+    if any(d.name == "no_crop" for d in run_dirs):
+        fig.text(0.5, 0.0, "*validare pe imagini nedecupate", ha="center", va="top",
+                 fontsize=FONT - 2)
+    fig.tight_layout()
+    fig.savefig(fig_path, dpi=DPI, bbox_inches="tight")
+    plt.close(fig)
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--out", default="reports/m4", help="folderul cu rezultate")
+    parser.add_argument("--figure", default="reports/figures/m4_val_accuracy_comparison.png")
+    parser.add_argument("--runs", nargs="*", help="doar aceste run-uri (implicit toate)")
+    args = parser.parse_args()
+
     runs_dir = config.PROJECT_ROOT / "runs"
     # Ignora directoarele temporare (_) si pe cele fara config.json
     run_dirs = sorted(d for d in runs_dir.iterdir()
                       if d.is_dir() and not d.name.startswith("_")
-                      and (d / "config.json").exists())
+                      and (d / "config.json").exists()
+                      and (not args.runs or d.name in args.runs))
     if not run_dirs:
         raise SystemExit("Nu există run-uri valide în runs/.")
+    out_dir = config.PROJECT_ROOT / args.out
+    out_dir.mkdir(parents=True, exist_ok=True)
     table = compare_runs(run_dirs)
-    csv_path = config.PROJECT_ROOT / "reports" / "m4" / "comparison.csv"
-    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    csv_path = out_dir / "comparison.csv"
     table.to_csv(csv_path, index=False)
 
-    fig, ax = plt.subplots(figsize=(16, 9))
-    for d in run_dirs:
-        h = pd.read_csv(d / "history.csv")
-        ax.plot(h["epoch"], h["val_accuracy"], linewidth=2.5, label=d.name)
-    ax.set_xlabel("Epocă", fontsize=FONT + 2)
-    ax.set_ylabel("Acuratețe pe validare", fontsize=FONT + 2)
-    ax.set_title("Comparație între run-uri", fontsize=FONT + 6)
-    ax.tick_params(labelsize=FONT)
-    ax.grid(alpha=0.3)
-    ax.legend(fontsize=FONT)
-    fig_path = config.FIGURES_DIR / "m4_val_accuracy_comparison.png"
-    fig.savefig(fig_path, dpi=DPI, bbox_inches="tight")
-    plt.close(fig)
+    fig_path = config.PROJECT_ROOT / args.figure
+    fig_path.parent.mkdir(parents=True, exist_ok=True)
+    plot_comparison(run_dirs, fig_path)
+    for run, src, dst in EXPORTS:
+        if (out_dir / run / src).exists():
+            shutil.copy2(out_dir / run / src, config.FIGURES_DIR / dst)
     print(table.to_string(index=False))
     print(f"salvat in {csv_path} si {fig_path}")
 

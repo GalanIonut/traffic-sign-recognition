@@ -31,8 +31,9 @@ def main() -> None:
     weights = None if args.no_class_weights else compute_class_weights(
         train_df["class_id"].tolist())
     model = build_cnn(dropout=args.dropout)
-    history = train_model(model, train_ds, val_ds,
-                          run_dir=config.PROJECT_ROOT / "runs" / args.run_name,
+    run_dir = config.PROJECT_ROOT / "runs" / args.run_name
+    print(f"director run: {run_dir}")
+    history = train_model(model, train_ds, val_ds, run_dir=run_dir,
                           epochs=args.epochs, class_weight=weights,
                           run_config=vars(args))
     best = history.loc[history["val_loss"].idxmin()]
