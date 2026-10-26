@@ -5,5 +5,6 @@
   "f1_macro": 0.972284174232492,
   "f1_weighted": 0.9829559363240568,
   "crop": true,
-  "ms_per_image": 0.2895756795724853
+  "ms_per_image_batch": 0.2890665148852558,
+  "ms_per_image_single": 13.903742499969667
 }
