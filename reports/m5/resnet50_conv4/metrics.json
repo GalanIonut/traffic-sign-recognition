@@ -1,0 +1,10 @@
+{
+  "accuracy": 0.978147268408551,
+  "precision_macro": 0.9705567368462424,
+  "recall_macro": 0.9661693465505395,
+  "f1_macro": 0.9667846299088851,
+  "f1_weighted": 0.9779347967861552,
+  "crop": true,
+  "ms_per_image_batch": 2.649960583293411,
+  "ms_per_image_single": 26.76936249990831
+}
