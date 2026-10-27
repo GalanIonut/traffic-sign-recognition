@@ -26,3 +26,6 @@ runs/
 
 # Spatiu de lucru superpowers (ledger, rapoarte agenti)
 .superpowers/
+
+# Config local al uneltelor
+.claude/

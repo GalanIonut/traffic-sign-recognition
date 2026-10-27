@@ -87,3 +87,12 @@ def test_prepare_matches_pipeline(fake_gtsrb):
     img, _ = next(iter(make_dataset(df, 48, batch_size=1, training=False)))
     assert np.allclose(out, img[0].numpy())
     assert prepare(row.path, 48).shape == (48, 48, 3)
+
+
+def test_load_image_applies_exif_orientation(tmp_path):
+    # poza de telefon: 40 latime x 20 inaltime, EXIF orientation=6 (rotit 90 grade)
+    exif = Image.Exif()
+    exif[0x0112] = 6
+    path = tmp_path / "phone.jpg"
+    Image.new("RGB", (40, 20), (200, 10, 10)).save(path, exif=exif)
+    assert load_image(path).shape == (40, 20, 3)
