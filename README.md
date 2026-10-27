@@ -4,7 +4,8 @@ Proiect pentru cursul **Tehnici de Inteligență Artificială**. Clasificăm ima
 
 - o **rețea convoluțională proprie (CNN)**, construită de la zero în TensorFlow/Keras;
 - o **arhitectură consacrată, ResNet50**, pre-antrenată pe ImageNet și adaptată prin fine-tuning;
-- o **aplicație web Streamlit**, în care încarci o imagine și afli ce semn este.
+- un **detector YOLO11** (Ultralytics), antrenat pe [GTSDB](https://benchmark.ini.rub.de/gtsdb_news.html), care găsește semnele într-o **poză cu o scenă de stradă**; fiecare semn găsit este decupat și clasificat de CNN (lanț **YOLO → CNN**);
+- o **aplicație web Streamlit**, în care încarci o imagine cu un semn sau o scenă de stradă și afli ce semne sunt.
 
 ![Aplicația Streamlit recunoaște un semn Stop](reports/figures/app_screenshot.jpg)
 
@@ -38,12 +39,40 @@ Alte experimente cu CNN-ul (aceeași arhitectură):
 
 ---
 
+## Detecție + clasificare pe scene de stradă
+
+Clasificatorul de mai sus primește un semn deja decupat. Într-o poză reală de stradă semnele sunt mici și nu știm unde sunt. Așa că un detector **YOLO11n** (o singură clasă: „semn”) găsește pătratele cu semne, iar CNN-ul le clasifică.
+
+Evaluare finală pe setul de test **GTSDB** (300 de poze, 361 de semne; folosit o singură dată). Un semn detectat se potrivește cu unul real dacă IoU ≥ 0,5.
+
+| Etapă | Metrică | Valoare |
+|---|---|---:|
+| Detector YOLO | mAP50 | 98,7% |
+| Detector YOLO | mAP50-95 | 87,2% |
+| Detector YOLO | precizie / recall | 97,2% / 96,7% |
+| Lanț YOLO → CNN | semne găsite de detector (recall detecție) | 97,2% |
+| Lanț YOLO → CNN | acuratețea clasificării pe semnele găsite | 99,4% |
+| **Lanț YOLO → CNN** | **recall cap-coadă** (găsit și clasificat corect) | **96,7%** |
+| **Lanț YOLO → CNN** | **precizie cap-coadă** | **95,1%** |
+| **Lanț YOLO → CNN** | **F1 cap-coadă** | **95,9%** |
+| Timp / poză (CPU) | detecție + clasificare | ~32 ms + ~5 ms |
+
+Semnele ratate de detector contează ca greșeli (scad recall-ul), iar detecțiile fără semn real scad precizia. Pragul de detecție (0,45), marja de decupaj (5%) și clasificatorul au fost alese pe pozele GTSDB 0–599, fără testul.
+
+![Exemple de scene: semne detectate și clasificate](reports/m8/examples.png)
+
+**Alegerea clasificatorului:** pe pozele 0–599, `cnn_baseline` cu marjă de 5% are 99,4% acuratețe, dar scade la 64,3% cu marjă de 30% (a văzut la antrenare doar semne decupate strâns). `cnn_no_crop` rămâne la ~99% la orice marjă. Lanțul folosește `cnn_baseline` cu marjă de 5%.
+
+**Limite:** semnele foarte mici (~16 px) pot fi ratate, iar sistemul cunoaște doar cele 43 de clase germane.
+
+---
+
 ## Instalare
 
 ### 1. Cerințe
 - **Python 3.12**
 - [**uv**](https://docs.astral.sh/uv/) (recomandat): `curl -LsSf https://astral.sh/uv/install.sh | sh`
-- ~2 GB spațiu liber (TensorFlow + setul de date)
+- ~2 GB spațiu liber (TensorFlow + setul de date); GTSDB mai adaugă câteva sute de MB
 
 ### 2. Codul și mediul
 
@@ -83,6 +112,14 @@ archive/
 └── Train.csv
 ```
 
+### 4. GTSDB (doar pentru antrenarea și evaluarea detectorului)
+
+Aplicația și testele nu au nevoie de el. Pentru detector:
+
+- **Pozele:** descarcă GTSDB de pe Kaggle și dezarhivează-l în `~/Downloads/GTSDB_Train_and_Test` (folderul implicit al lui `make_yolo_dataset.py`; altfel dai calea cu `--images-dir`).
+- **Etichetele:** nu folosim etichetele de pe Kaggle, pentru că au greșeli (la train păstrează doar un pătrat pe poză, iar la test clasele sunt amestecate). Le regenerăm din fișierul oficial `gt.txt`. Pune fișierul `gt.txt` din arhiva oficială FullIJCNN2013 în `data/gtsdb/gt.txt`. Site-urile oficiale sunt adesea căzute, deci caută arhiva FullIJCNN2013 în altă parte dacă e nevoie.
+- Împărțirea: train = pozele 00000–00499, validare = 00500–00599, test = 00600–00899.
+
 ---
 
 ## Utilizare
@@ -95,7 +132,9 @@ uv run streamlit run app/streamlit_app.py
 
 Se deschide în browser la **http://localhost:8501**. Primul start durează ~10 secunde (se încarcă TensorFlow).
 
-**Exemplu de utilizare:**
+Aplicația are două taburi: **Un semn** (clasificare) și **Scenă de stradă** (detecție + clasificare).
+
+**Exemplu de utilizare, tabul „Un semn”:**
 1. În bara din stânga alegi modelul: **CNN propriu** sau **ResNet50**.
 2. Apeși **Upload** și alegi o poză cu un semn (PNG, JPG, PPM, BMP sau WEBP), sau alegi un **exemplu** din listă (de ex. „Stop”).
 3. Aplicația afișează:
@@ -109,6 +148,10 @@ Sfaturi:
 - Merge cel mai bine când semnul ocupă cea mai mare parte a imaginii.
 - Sub 50% încredere, aplicația te avertizează că nu e sigură.
 - Modelul cunoaște doar cele **43 de semne germane** din GTSRB. Pe o imagine care nu e un semn va alege totuși una dintre ele, pentru că un clasificator nu are opțiunea „niciunul”.
+
+**Tabul „Scenă de stradă”:** încarci o poză de stradă sau alegi unul dintre cele 6 exemple. YOLO găsește semnele, CNN le clasifică, iar aplicația desenează pătratele și numele semnelor, cu o listă dedesubt. Detectorul rulează pe CPU, ~32 ms la detecție și ~5 ms la clasificare pe poză (după încălzire). Exemplele sunt poze din setul de test GTSDB, doar ilustrative; numerele din tabelul de rezultate nu depind de ele.
+
+![Tabul de scene din aplicație](reports/figures/app_scene_screenshot.jpg)
 
 > **ResNet50 în aplicație:** fișierul modelului are ~260 MB, deci nu e pus pe GitHub. Aplicația pornește doar cu CNN-ul și îți arată comanda de adăugare. Ca să-l ai, antrenează-l (vezi mai jos), apoi:
 > ```bash
@@ -132,6 +175,30 @@ uv run python scripts/train_resnet.py --run-name resnet50_conv4 --unfreeze conv4
 
 Fiecare antrenare salvează în `runs/<nume>/`: modelul (`model.keras`), setările (`config.json`) și istoricul pe epoci (`history.csv`).
 
+### Detectorul YOLO și lanțul YOLO → CNN (opțional; `models/yolo_signs.pt`, 5,5 MB, e deja în repo)
+
+Cere GTSDB și `data/gtsdb/gt.txt` (vezi mai sus). Antrenarea durează ~35 min pe Apple MPS (yolo11n, o clasă, imgsz 1024).
+
+```bash
+# 1. Setul YOLO din GTSDB (poze + etichete din gt.txt, în data/gtsdb_yolo)
+uv run python scripts/make_yolo_dataset.py
+
+# 2. Antrenare YOLO (pornește de la yolo11n.pt; ponderile se descarcă la prima rulare dacă lipsesc)
+uv run python scripts/train_yolo.py --run-name yolo11n_gtsdb
+
+# 3. Evaluare pe test + exemple; --promote copiază ponderile în models/yolo_signs.pt
+uv run python scripts/evaluate_yolo.py --run-name yolo11n_gtsdb --promote
+
+# 4. Alegerea clasificatorului, a marjei și a pragului pe pozele 0–599
+uv run python scripts/tune_pipeline.py
+
+# 5. Evaluarea finală cap-coadă pe pozele de test 600–899 (scrie reports/m8/)
+uv run python scripts/evaluate_pipeline.py
+
+# 6. Cele 6 poze-exemplu pentru aplicație (app/assets/scenes/)
+uv run python scripts/make_scene_assets.py
+```
+
 ### Evaluare pe setul de test
 
 ```bash
@@ -149,7 +216,7 @@ uv run python scripts/make_presentation_figures.py                          # gr
 uv run pytest -q
 ```
 
-132 de teste automate (preprocesare, împărțirea datelor, augmentare, modele, antrenare, evaluare, aplicație). Rulează în ~30 de secunde, pe date mici generate, fără setul real.
+185 de teste automate (preprocesare, împărțirea datelor, augmentare, modele, antrenare, evaluare, detecție, scene, aplicație). Rulează în ~30 de secunde, pe date mici generate, fără setul real.
 
 ---
 
@@ -177,6 +244,10 @@ uv run pytest -q
 - **Etapa 1:** baza e înghețată și se antrenează doar capul (5 epoci, lr 1e-3).
 - **Etapa 2:** se dezgheață ultimele blocuri (`conv5`, respectiv `conv4`+`conv5`), cu o rată de învățare de 10× mai mică (1e-4). Straturile BatchNorm rămân înghețate.
 
+### Detecția și scenele
+- `src/traffic_signs/detection.py`: citirea `gt.txt`, convertirea GTSDB în format YOLO (o singură clasă) și potrivirea detecțiilor cu semnele reale (IoU ≥ 0,5).
+- `src/traffic_signs/scene.py`: lanțul YOLO → CNN pentru o poză întreagă (detecție, decupare cu marjă, clasificare, desenarea pătratelor).
+
 ### Aplicația
 - `src/traffic_signs/inference.py` conține logica: citirea imaginii (cu mesaje clare pentru fișiere greșite și cu rotirea pozelor de telefon după EXIF), predicția și top 3.
 - `app/streamlit_app.py` este doar interfața; modelele se încarcă o singură dată și rămân în memorie.
@@ -189,6 +260,7 @@ uv run pytest -q
 ├── app/
 │   ├── streamlit_app.py      # aplicația web
 │   └── assets/               # imaginile oficiale ale semnelor + exemple
+│       └── scenes/           # 6 poze de stradă (GTSDB, test) + adevărul de teren
 ├── src/traffic_signs/        # codul proiectului (pachet Python)
 │   ├── config.py             # constante: seed, mărimi imagini, căi
 │   ├── classes.py            # numele celor 43 de semne, în română
@@ -200,11 +272,14 @@ uv run pytest -q
 │   ├── training.py           # antrenare (o etapă / două etape)
 │   ├── evaluation.py         # metrici, matrice de confuzie, grafice
 │   ├── comparison.py         # comparația CNN vs. ResNet50
+│   ├── detection.py          # YOLO: gt.txt, set de date YOLO, potrivire IoU
+│   ├── scene.py              # lanțul YOLO → CNN pe o scenă de stradă
 │   └── inference.py          # predicția folosită de aplicație
 ├── scripts/                  # comenzi pentru split, antrenare, evaluare, grafice
 ├── tests/                    # testele automate (pytest)
 ├── notebooks/                # notebook explicativ, pas cu pas, al preprocesării
-├── models/                   # modelele CNN antrenate (cnn_baseline, cnn_no_crop)
+├── models/                   # modelele CNN (cnn_baseline, cnn_no_crop), yolo_signs.pt, pipeline.json
+├── data/                     # GTSDB și setul YOLO (ignorat de git)
 ├── reports/                  # metrici, tabele și grafice (inclusiv pentru prezentare)
 ├── splits/                   # împărțirea train/validare salvată
 ├── pyproject.toml, uv.lock   # dependențele
@@ -219,7 +294,9 @@ uv run pytest -q
 - Braitor Ana-Maria
 
 ## Tehnologii
-Python 3.12 · TensorFlow 2.21 / Keras 3 · Streamlit · NumPy · pandas · Pillow · scikit-learn · Matplotlib · pytest · uv
+Python 3.12 · TensorFlow 2.21 / Keras 3 · PyTorch · Ultralytics YOLO11 · Streamlit · NumPy · pandas · Pillow · scikit-learn · Matplotlib · pytest · uv
 
 ## Set de date
 J. Stallkamp, M. Schlipsing, J. Salmen, C. Igel, *The German Traffic Sign Recognition Benchmark: A multi-class classification competition*, IJCNN 2011.
+
+S. Houben, J. Stallkamp, J. Salmen, M. Schlipsing, C. Igel, „Detection of Traffic Signs in Real-World Images: The German Traffic Sign Detection Benchmark”, IJCNN 2013.
