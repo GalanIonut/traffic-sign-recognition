@@ -14,7 +14,12 @@ from traffic_signs.presentation import BG, BLUE, GRID, INK, INK2, ORANGE, W, H, 
 COLUMNS = ["model", "test_accuracy", "f1_macro", "params", "trainable_params", "weights_mb",
            "file_mb", "train_minutes", "epochs_run", "ms_per_image_batch", "ms_per_image_single"]
 _MB = 1024 * 1024  # MiB
-_NAMES = {"cnn": "CNN propriu", "resnet": "ResNet50", "resnet50": "ResNet50"}
+_NAMES = {"cnn": "CNN propriu", "resnet": "ResNet50", "resnet50": "ResNet50",
+          "resnet_conv4": "ResNet50 (conv4+conv5)"}
+# cu mai multe variante ResNet, „resnet” înseamnă doar conv5 dezghețat
+_NAMES_MULTI = {**_NAMES, "resnet": "ResNet50 (conv5)", "resnet50": "ResNet50 (conv5)"}
+AQUA = "#1baf7a"
+SLOT_COLORS = [BLUE, ORANGE, AQUA]  # ordine fixă, validată pentru daltonism
 
 
 def _read_json(path: Path) -> dict:
@@ -63,16 +68,31 @@ def _pick(table: pd.DataFrame, label: str) -> pd.Series:
     return rows.iloc[0]
 
 
-def comparison_title(table: pd.DataFrame, cnn_label: str = "cnn",
-                     resnet_label: str = "resnet") -> str:
-    """Titlu-concluzie calculat din cifre, adevărat oricare model câștigă."""
-    cnn, res = _pick(table, cnn_label), _pick(table, resnet_label)
+def _as_list(resnet_label) -> list[str]:
+    """Una sau mai multe etichete ResNet -> listă."""
+    return [resnet_label] if isinstance(resnet_label, str) else list(resnet_label)
+
+
+def best_resnet(table: pd.DataFrame, resnet_label="resnet") -> str:
+    """Eticheta ResNet cu cea mai bună acuratețe pe test (la egalitate: prima din listă)."""
+    labels = _as_list(resnet_label)
+    return max(labels, key=lambda lb: (_pick(table, lb)["test_accuracy"], -labels.index(lb)))
+
+
+def comparison_title(table: pd.DataFrame, cnn_label: str = "cnn", resnet_label="resnet") -> str:
+    """Titlu-concluzie calculat din cifre, adevărat oricare model câștigă.
+
+    Cu mai multe variante ResNet, compară CNN-ul cu cea mai bună."""
+    labels = _as_list(resnet_label)
+    best = best_resnet(table, labels)
+    name = (_NAMES_MULTI if len(labels) > 1 else _NAMES).get(best, "ResNet50")
+    cnn, res = _pick(table, cnn_label), _pick(table, best)
     diff_pp = (res["test_accuracy"] - cnn["test_accuracy"]) * 100
     dec = 2 if abs(diff_pp) < 0.5 else 1  # diferențe mici: 2 zecimale
     if abs(diff_pp) < 0.005:
-        head = "ResNet50 și CNN-ul au aceeași acuratețe"
+        head = f"{name} și CNN-ul au aceeași acuratețe"
     elif diff_pp > 0:
-        head = f"ResNet50 câștigă {_ro(diff_pp, dec)} pp acuratețe"
+        head = f"{name} câștigă {_ro(diff_pp, dec)} pp acuratețe"
     else:
         head = f"CNN-ul propriu câștigă {_ro(-diff_pp, dec)} pp acuratețe"
 
@@ -87,10 +107,10 @@ def comparison_title(table: pd.DataFrame, cnn_label: str = "cnn",
         tail = f"{size_txt} și {time_txt[2:].strip()}"  # „e de 18× mai mare și de 3× mai lent…”
     else:
         tail = f"{size_txt}, iar {time_txt}"
-    worse = size >= 1.05 or time >= 1.05  # ResNet50 pierde la cel puțin un cost
+    worse = size >= 1.05 or time >= 1.05  # ResNet pierde la cel puțin un cost
     if diff_pp > 0.005:
         return f"{head}, {'dar' if worse else 'și'} {tail}"
-    return f"{head}; ResNet50 {tail}"
+    return f"{head}; {name} {tail}"
 
 
 def split_title(title: str) -> str:
@@ -111,26 +131,33 @@ PANELS = [
 
 
 def plot_cnn_vs_resnet(table: pd.DataFrame, out_path: Path, cnn_label: str = "cnn",
-                       resnet_label: str = "resnet") -> None:
+                       resnet_label="resnet") -> None:
     """Desenează și salvează figura de comparație."""
     _save(build_comparison_figure(table, cnn_label, resnet_label), out_path)
 
 
-def build_comparison_figure(table: pd.DataFrame, cnn_label: str = "cnn",
-                            resnet_label: str = "resnet"):
-    """Patru panouri de bare orizontale, fiecare cu axa ei; rândurile se aleg după etichetă."""
-    title_txt = split_title(comparison_title(table, cnn_label, resnet_label))
-    table = pd.DataFrame([_pick(table, cnn_label), _pick(table, resnet_label)]).reset_index(drop=True)
+def build_comparison_figure(table: pd.DataFrame, cnn_label: str = "cnn", resnet_label="resnet"):
+    """Patru panouri de bare orizontale, fiecare cu axa ei; rândurile se aleg după etichetă.
+
+    resnet_label: o etichetă sau o listă ordonată (bare: CNN, apoi ResNet-urile)."""
+    labels = _as_list(resnet_label)
+    multi = len(labels) > 1
+    title_txt = split_title(comparison_title(table, cnn_label, labels))
+    table = pd.DataFrame([_pick(table, lb) for lb in [cnn_label, *labels]]).reset_index(drop=True)
     table["error_pct"] = (1 - table["test_accuracy"].astype(float)) * 100
     fig = plt.figure(figsize=(W, H), facecolor=BG)
     title = fig.text(0.6 / W, 1 - 0.3 / H, title_txt, fontsize=20, fontweight="bold",
                       color=INK, ha="left", va="top", linespacing=1.25)
     fig.title_text = title  # pentru verificarea în teste că încape în figură
-    fig.text(0.6 / W, 1 - 1.5 / H, "Același set de test (12.630 de imagini, semne decupate)",
+    sub = "Același set de test (12.630 de imagini, semne decupate)"
+    if multi:  # titlul compară CNN-ul cu cea mai bună variantă ResNet
+        sub += f" · în titlu: {_NAMES_MULTI.get(best_resnet(table, labels), 'ResNet50')}"
+    fig.text(0.6 / W, 1 - 1.5 / H, sub,
              fontsize=15, color=INK2, ha="left", va="center")
     n = len(table)
-    names = [_NAMES.get(m, m) for m in table["model"]]
-    colors = [ORANGE if "resnet" in str(m).lower() else BLUE for m in table["model"]]
+    names = [(_NAMES_MULTI if multi else _NAMES).get(m, m).replace(" (", "\n(")
+             for m in table["model"]]
+    colors = SLOT_COLORS[:n]
     for i, (col, title, fmt) in enumerate(PANELS):
         r, c = divmod(i, 2)
         x0 = 2.3 + c * 7.6

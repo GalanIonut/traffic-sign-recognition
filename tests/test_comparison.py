@@ -189,3 +189,94 @@ def test_title_fits_in_figure(entries):
     sub = [x for x in fig.texts if x is not fig.title_text][0].get_window_extent()
     assert box.y0 >= sub.y1  # nu se suprapune cu subtitlul
     plt.close(fig)
+
+
+# --- comparația în 3 (CNN, ResNet conv5, ResNet conv4+conv5) ---
+LABELS3 = ["resnet", "resnet_conv4"]
+
+
+@pytest.fixture
+def table3(tmp_path):
+    cnn = _fake_run(tmp_path, "cnn", size_bytes=2 * 1024 * 1024, acc=0.99, f1=0.98,
+                    params=1_000_000, trainable=1_000_000, seconds=600.0, epochs=30,
+                    ms_batch=0.3, ms_single=13.0)
+    r5 = _fake_run(tmp_path, "resnet", size_bytes=36 * 1024 * 1024, acc=0.985, f1=0.98,
+                   params=23_000_000, trainable=9_000_000, seconds=7200.0, epochs=12,
+                   ms_batch=2.4, ms_single=40.0)
+    r4 = _fake_run(tmp_path, "resnet_conv4", size_bytes=36 * 1024 * 1024, acc=0.995, f1=0.99,
+                   params=23_000_000, trainable=20_000_000, seconds=9000.0, epochs=12,
+                   ms_batch=2.4, ms_single=40.0)
+    return model_comparison_table([cnn, r5, r4])
+
+
+def test_table_three_runs(table3):
+    assert list(table3["model"]) == ["cnn", "resnet", "resnet_conv4"]
+    assert table3.iloc[2]["trainable_params"] == 20_000_000
+    assert table3.iloc[2]["train_minutes"] == pytest.approx(150.0)
+
+
+def test_title_three_best_resnet_wins(table3):
+    from traffic_signs.comparison import comparison_title
+    t = comparison_title(table3, "cnn", LABELS3)
+    assert t.startswith("ResNet50 (conv4+conv5) câștigă 0,5 pp acuratețe")
+    assert "de 23× mai mare" in t
+
+
+def test_title_three_cnn_wins(table3):
+    from traffic_signs.comparison import comparison_title
+    table3.loc[2, "test_accuracy"] = 0.98  # conv4 = 0.98, conv5 = 0.985 -> conv5 e cel mai bun
+    t = comparison_title(table3, "cnn", LABELS3)
+    assert t.startswith("CNN-ul propriu câștigă 0,5 pp acuratețe; ResNet50 (conv5) e de")
+    assert "conv4" not in t
+
+
+def test_title_two_models_unchanged(entries):
+    from traffic_signs.comparison import comparison_title
+    t = model_comparison_table(entries)
+    assert comparison_title(t, "cnn", ["resnet"]) == comparison_title(t, "cnn", "resnet")
+    assert "conv" not in comparison_title(t)
+
+
+def test_figure_three_models(table3, tmp_path):
+    import matplotlib.pyplot as plt
+    from traffic_signs.comparison import build_comparison_figure
+    out = tmp_path / "f3.png"
+    plot_cnn_vs_resnet(table3, out, "cnn", LABELS3)
+    assert out.exists() and out.stat().st_size > 5000
+    table3.loc[2, "test_accuracy"] = 0.97
+    table3.loc[1, "test_accuracy"] = 0.96  # titlul cel mai lung (CNN câștigă)
+    fig = build_comparison_figure(table3, "cnn", LABELS3)
+    fig.canvas.draw()
+    box = fig.title_text.get_window_extent()
+    assert "\n" in fig.title_text.get_text()
+    assert fig.bbox.x0 <= box.x0 and box.x1 <= fig.bbox.x1
+    assert fig.bbox.y0 <= box.y0 and box.y1 <= fig.bbox.y1
+    sub = [x for x in fig.texts if x is not fig.title_text][0]
+    assert "conv" in sub.get_text()  # subtitlul numește varianta din titlu
+    sb = sub.get_window_extent()
+    assert box.y0 >= sb.y1 and sb.x1 <= fig.bbox.x1
+    assert len(fig.axes[0].patches) == 3
+    plt.close(fig)
+
+
+def _compare_script():
+    spec = importlib.util.spec_from_file_location("compare_models_script",
+                                                  ROOT / "scripts" / "compare_models.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_compare_models_two_vs_three(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "PROJECT_ROOT", tmp_path)
+    mod = _compare_script()
+    (tmp_path / "runs" / "baseline").mkdir(parents=True)
+    (tmp_path / "runs" / "resnet50").mkdir(parents=True)
+    (tmp_path / "reports" / "m5" / "resnet50").mkdir(parents=True)
+    assert [e["label"] for e in mod.build_entries(tmp_path)] == ["cnn", "resnet"]
+    (tmp_path / "runs" / "resnet50_conv4").mkdir()  # doar run-ul, fără rapoarte -> tot 2
+    assert [e["label"] for e in mod.build_entries(tmp_path)] == ["cnn", "resnet"]
+    (tmp_path / "reports" / "m5" / "resnet50_conv4").mkdir()
+    es = mod.build_entries(tmp_path)
+    assert [e["label"] for e in es] == ["cnn", "resnet", "resnet_conv4"]
+    assert es[2]["run_dir"] == tmp_path / "runs" / "resnet50_conv4"
