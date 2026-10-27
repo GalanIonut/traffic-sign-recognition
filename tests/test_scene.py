@@ -271,3 +271,52 @@ def test_label_font_has_romanian_glyphs():
     missing = bytes(font.getmask("\uffff"))
     for ch in "ăâîșț":
         assert bytes(font.getmask(ch)) != missing
+
+
+# --- mostre de scene + alegerea exemplelor ---
+
+def test_scene_samples_sorted_jpgs(tmp_path):
+    d = tmp_path / "scenes"
+    d.mkdir()
+    for n in ("00700.jpg", "00612.jpg", "gt.txt", "x.png"):
+        (d / n).write_bytes(b"x")
+    assert [p.name for p in scene.scene_samples(tmp_path)] == ["00612.jpg", "00700.jpg"]
+    assert scene.scene_samples(tmp_path / "nu_exista") == []
+
+
+def test_load_scene_gt_roundtrip(tmp_path):
+    mapping = {"00612": [GroundTruth((1.0, 2.0, 30.0, 40.0), 14),
+                         GroundTruth((5.0, 6.0, 7.0, 8.0), 1)]}
+    scene.write_scene_gt(tmp_path, mapping)
+    assert scene.load_scene_gt(tmp_path) == mapping
+
+
+def test_load_scene_gt_missing_file_is_empty(tmp_path):
+    assert scene.load_scene_gt(tmp_path) == {}
+
+
+def _synthetic(wrong_id="00005"):
+    per_image = {}
+    for i in range(8):
+        name = f"{i:05d}"
+        if i in (1, 6):  # fara semne
+            per_image[name] = ([], [])
+            continue
+        side = 10 + 5 * i
+        gt = GroundTruth((0, 0, side, side), 14)
+        cid = 3 if name == wrong_id else 14
+        per_image[name] = ([_sign(1, (0, 0, side, side), 0.9, cid)], [gt])
+    return per_image
+
+
+def test_pick_examples_deterministic_and_includes_error():
+    per_image = _synthetic()
+    a = scene.pick_examples(per_image)
+    assert a == scene.pick_examples(dict(reversed(list(per_image.items()))))
+    assert len(a) == 6 and len(set(a)) == 6
+    assert "00005" in a
+    assert "00001" not in a and "00006" not in a
+
+
+def test_pick_examples_fewer_images_than_k():
+    assert len(scene.pick_examples(_synthetic(), k=10)) == 6

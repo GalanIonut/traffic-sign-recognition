@@ -1,0 +1,28 @@
+{
+  "split": "test (GTSDB 600-899)",
+  "n_images": 300,
+  "n_gt": 361,
+  "n_det": 367,
+  "found": 351,
+  "found_correct": 349,
+  "detection_recall": 0.9722991689750693,
+  "classification_accuracy": 0.9943019943019943,
+  "e2e_recall": 0.9667590027700831,
+  "e2e_precision": 0.9509536784741145,
+  "e2e_f1": 0.9587912087912088,
+  "conf": 0.45,
+  "classifier": "cnn_baseline.keras",
+  "margin": 0.05,
+  "detect_ms_mean": 32.29221792324097,
+  "classify_ms_mean": 4.691731682542013,
+  "device": "cpu",
+  "example_ids": [
+    "00615",
+    "00787",
+    "00778",
+    "00601",
+    "00602",
+    "00603"
+  ],
+  "note": "Evaluare finală cap-coadă (YOLO apoi CNN) pe cele 300 de imagini de test GTSDB (600–899), folosită o singură dată. Un semn detectat se potrivește cu un semn real dacă IoU ≥ 0,5 (potrivire greedy, fiecare semn real cel mult o dată). detection_recall = ponderea semnelor reale găsite de detector; classification_accuracy = ponderea semnelor găsite al căror tip e corect; e2e_recall = semne găsite ȘI clasificate corect / semne reale; e2e_precision = semne găsite și clasificate corect / toate detecțiile păstrate; e2e_f1 = media armonică a lor. Semnele ratate de detector contează ca greșeli (scad e2e_recall), iar detecțiile fără semn real scad e2e_precision. Pragul de detecție, marja de decupaj și clasificatorul au fost alese pe imaginile 0–599 (pragul pe 500–599), fără să se folosească testul. detect_ms_mean = timpul mediu YOLO per imagine, classify_ms_mean = timpul mediu de decupare și clasificare CNN per imagine, ambele măsurate pe dispozitivul din câmpul device, după 2 apeluri de încălzire."
+}

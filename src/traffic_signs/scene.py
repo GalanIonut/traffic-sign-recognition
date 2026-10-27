@@ -316,3 +316,66 @@ def annotate(image: np.ndarray, signs: list[SceneSign], statuses: dict[int, str]
         draw.rectangle(box, outline=color, width=width)
         _draw_label(draw, font, label_text(s, status), box, color, (w, h))
     return np.array(pil)
+
+
+SCENES_GT_NAME = "scenes_gt.json"
+
+
+def scene_samples(assets_dir: Path = config.APP_ASSETS_DIR) -> list[Path]:
+    """Pozele de scena din `scenes/*.jpg`, sortate."""
+    return sorted((Path(assets_dir) / "scenes").glob("*.jpg"))
+
+
+def write_scene_gt(assets_dir: Path, mapping: dict[str, list[GroundTruth]]) -> None:
+    """Scrie scenes_gt.json: {stem: [[x1, y1, x2, y2, class_id], ...]} cu colturi exclusive."""
+    d = Path(assets_dir) / "scenes"
+    d.mkdir(parents=True, exist_ok=True)
+    data = {k: [[*g.box, g.class_id] for g in v] for k, v in mapping.items()}
+    (d / SCENES_GT_NAME).write_text(json.dumps(data, indent=2) + "\n")
+
+
+def load_scene_gt(assets_dir: Path = config.APP_ASSETS_DIR) -> dict[str, list[GroundTruth]]:
+    path = Path(assets_dir) / "scenes" / SCENES_GT_NAME
+    if not path.exists():
+        return {}
+    raw = json.loads(path.read_text())
+    return {k: [GroundTruth((float(r[0]), float(r[1]), float(r[2]), float(r[3])), int(r[4]))
+                for r in v] for k, v in raw.items()}
+
+
+def _min_area(gts: list[GroundTruth]) -> float:
+    return min((g.box[2] - g.box[0]) * (g.box[3] - g.box[1]) for g in gts)
+
+
+def pick_examples(per_image: dict[str, tuple[list[SceneSign], list[GroundTruth]]],
+                  k: int = 6) -> list[str]:
+    """Alege k poze: cele mai multe semne, cel mai mic semn, o greseala, apoi cele mai mici ID-uri.
+
+    Deterministic; ignora pozele fara semne GT. `signs` sunt cele deja filtrate dupa prag.
+    """
+    ids = sorted(n for n, (_, gts) in per_image.items() if gts)
+    chosen: list[str] = []
+
+    def add(name: str | None) -> None:
+        if name is not None and name not in chosen and len(chosen) < k:
+            chosen.append(name)
+
+    add(max(ids, key=lambda n: (len(per_image[n][1]), [-ord(c) for c in n]), default=None))
+    add(min(ids, key=lambda n: (_min_area(per_image[n][1]), n), default=None))
+
+    def first_with(kind: str) -> str | None:
+        for n in ids:
+            signs, gts = per_image[n]
+            m = match(signs, gts)
+            st = sign_statuses(signs, gts, m)
+            if (kind == "wrong" and "wrong" in st.values()) \
+                    or (kind == "false" and "false" in st.values()) \
+                    or (kind == "missed" and m.missed):
+                return n
+        return None
+
+    add(next((x for x in (first_with("wrong"), first_with("false"), first_with("missed"))
+              if x is not None), None))
+    for n in ids:
+        add(n)
+    return chosen
