@@ -88,6 +88,11 @@ def detect(yolo, image: np.ndarray, conf: float = DETECT_FLOOR, device: str = "c
     return sorted(dets, key=lambda d: -d.score)
 
 
+def warm_up_yolo(yolo, device: str = "cpu", imgsz: int = 1024) -> None:
+    """O predictie pe o poza goala, ca prima poza reala sa nu includa initializarea."""
+    detect(yolo, np.zeros((800, 1360, 3), np.uint8), device=device, imgsz=imgsz)
+
+
 def classify_crops(model, crops: list[np.ndarray], image_size: int,
                    k: int = 3) -> list[tuple[Prediction, ...]]:
     """Top-k pentru toate decupajele, intr-un singur lot."""

@@ -33,9 +33,9 @@ Alte experimente cu CNN-ul (aceeași arhitectură):
 |---|---:|---|
 | `baseline` (cu dropout + augmentare) | 99,03% | modelul principal |
 | `no_reg` (fără dropout, fără augmentare) | 98,31% | **overfitting**: învață pe de rost datele de antrenare |
-| `no_crop` (antrenat pe imagini nedecupate) | 98,46%** | modelul folosit în aplicație |
+| `no_crop` (antrenat pe imagini nedecupate) | 98,46%** | modelul folosit în tabul «Un semn» al aplicației |
 
-\** pe imagini de test nedecupate. Pe aceleași imagini, `baseline` scade la 91,77%, pentru că a văzut la antrenare doar semne decupate strâns. De aceea aplicația folosește `no_crop`: pozele încărcate de utilizator nu sunt decupate.
+\** pe imagini de test nedecupate. Pe aceleași imagini, `baseline` scade la 91,77%, pentru că a văzut la antrenare doar semne decupate strâns. De aceea tabul «Un semn» folosește `no_crop`; tabul «Scenă de stradă» folosește `cnn_baseline`, pe semne decupate de YOLO cu marjă de 5%. Pozele încărcate de utilizator nu sunt decupate.
 
 ---
 
@@ -57,7 +57,9 @@ Evaluare finală pe setul de test **GTSDB** (300 de poze, 361 de semne; folosit 
 | **Lanț YOLO → CNN** | **F1 cap-coadă** | **95,9%** |
 | Timp / poză (CPU) | detecție + clasificare | ~32 ms + ~5 ms |
 
-Semnele ratate de detector contează ca greșeli (scad recall-ul), iar detecțiile fără semn real scad precizia. Pragul de detecție (0,45), marja de decupaj (5%) și clasificatorul au fost alese pe pozele GTSDB 0–599, fără testul.
+Recall-ul YOLO (Ultralytics, la pragul optim pentru F1) și recall-ul cap-coadă (prag 0,45) ies ambele 96,7% din întâmplare (în ambele cazuri 349/361): sunt metrici diferite.
+
+Semnele ratate de detector contează ca greșeli (scad recall-ul), iar detecțiile fără semn real scad precizia. Pragul de detecție (0,45), marja de decupaj (5%) și clasificatorul au fost alese pe pozele GTSDB 0–599, fără testul. Clasificatorul și marja au fost alese pe pozele 0–599 (YOLO a văzut 0–499 la antrenare), iar pragul pe 500–599 (setul de validare al YOLO), deci detecțiile de acolo sunt ușor optimiste; setul de test nu a fost folosit.
 
 ![Exemple de scene: semne detectate și clasificate](reports/m8/examples.png)
 
@@ -216,7 +218,7 @@ uv run python scripts/make_presentation_figures.py                          # gr
 uv run pytest -q
 ```
 
-185 de teste automate (preprocesare, împărțirea datelor, augmentare, modele, antrenare, evaluare, detecție, scene, aplicație). Rulează în ~30 de secunde, pe date mici generate, fără setul real.
+188 de teste automate (preprocesare, împărțirea datelor, augmentare, modele, antrenare, evaluare, detecție, scene, aplicație). Rulează în ~30 de secunde, pe date mici generate, fără setul real.
 
 ---
 

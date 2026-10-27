@@ -133,6 +133,23 @@ def test_match_greedy_by_score():
     assert r.missed == (1,)
 
 
+def test_match_picks_higher_iou_gt():
+    # semnul se suprapune cu doua GT (IoU 0,6 si 0,8, ambele >= 0,5): il alege pe cel mai bun
+    gts = [GroundTruth((0, 0, 10, 10), 1), GroundTruth((2, 0, 12, 10), 2)]
+    signs = [_sign(1, (1.5, 0, 11.5, 10), 0.9, 1)]
+    assert scene.iou(signs[0].box, gts[0].box) < scene.iou(signs[0].box, gts[1].box)
+    r = scene.match(signs, gts)
+    assert r.pairs == ((0, 1),)
+    assert r.missed == (0,)
+
+
+def test_warm_up_yolo_runs_one_dummy_predict():
+    yolo = FakeYolo()
+    scene.warm_up_yolo(yolo)
+    assert yolo.source.shape == (800, 1360, 3)
+    assert yolo.kw["imgsz"] == 1024 and yolo.kw["device"] == "cpu"
+
+
 def test_statuses_correct_wrong_false():
     gts = [GroundTruth((0, 0, 10, 10), 1), GroundTruth((50, 50, 60, 60), 2)]
     signs = [_sign(1, (0, 0, 10, 10), 0.9, 1), _sign(2, (50, 50, 60, 60), 0.8, 9),

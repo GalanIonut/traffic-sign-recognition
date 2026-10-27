@@ -134,3 +134,14 @@ def test_scene_tab_keeps_pil_open_unpatched(scene_dir):
     at = _first_scene(_run())
     assert not at.exception
     assert Image.open.__module__ == "PIL.Image"
+
+
+def test_scene_tab_malformed_config_shows_friendly_error(scene_dir):
+    (scene_dir / "pipeline.json").write_text("{ nu e json")
+    at = _run()
+    assert not at.exception
+    assert any("invalidă" in e.value and "tune_pipeline" in e.value for e in at.error)
+    (scene_dir / "pipeline.json").write_text('{"classifier": "x"}')  # lipsesc chei
+    at = _run()
+    assert not at.exception
+    assert any("invalidă" in e.value for e in at.error)

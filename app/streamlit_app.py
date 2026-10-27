@@ -15,7 +15,7 @@ from traffic_signs.inference import (
 from traffic_signs.models import load_trained_model
 from traffic_signs.scene import (
     PipelineConfig, SceneSign, annotate, crop_with_margin, filter_by_conf, load_pipeline_config,
-    load_scene_gt, match, run_pipeline, scene_samples, sign_statuses,
+    load_scene_gt, match, run_pipeline, scene_samples, sign_statuses, warm_up_yolo,
 )
 
 TITLE = "Recunoașterea semnelor de circulație"
@@ -46,7 +46,9 @@ def get_yolo(path: str):
     # ultralytics inlocuieste global PIL.Image.open: la un fisier invalid incearca
     # `pip install pi-heif` si arunca ModuleNotFoundError, nu mesajul nostru prietenos
     Image.open = original_open
-    return YOLO(path)
+    yolo = YOLO(path)
+    warm_up_yolo(yolo)  # incalzire in spinner: timpul afisat nu include initializarea
+    return yolo
 
 
 @st.cache_data(show_spinner="Caut semnele în poză…", max_entries=16)
@@ -101,7 +103,12 @@ def render_scene_tab(models_dir: Path, assets_dir: Path) -> None:
     if not cfg_path.is_file():
         st.info(f"Lipsește configurația lanțului (`{cfg_path.name}`). Creeaz-o cu:\n\n`{TUNE_CMD}`")
         return
-    cfg = load_pipeline_config(cfg_path)
+    try:
+        cfg = load_pipeline_config(cfg_path)
+    except (ValueError, KeyError, TypeError):  # JSONDecodeError e subclasa de ValueError
+        st.error(f"Configurația lanțului (`{cfg_path.name}`) este invalidă. "
+                 f"Recreeaz-o cu:\n\n`{TUNE_CMD}`")
+        return
     model_path = Path(models_dir) / cfg.classifier
     if not model_path.is_file():
         st.info(f"Lipsește clasificatorul `{cfg.classifier}` din folderul `models/`.")
@@ -164,7 +171,7 @@ def render_scene_tab(models_dir: Path, assets_dir: Path) -> None:
                f"clasificare {timings['classify_ms']:.0f} ms")
     if missed:
         names = ", ".join(CLASS_NAMES[g.class_id] for g in missed)
-        st.warning(f"⚠ Semne ratate de detector (pătrat punctat): {names}")
+        st.warning(f"Semne ratate de detector (pătrat punctat): {names}")
 
     if not signs:
         st.info("Nu am găsit niciun semn peste pragul ales. Încearcă un prag mai mic.")
