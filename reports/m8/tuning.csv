@@ -1,0 +1,13 @@
+classifier,margin,n_matched,accuracy
+cnn_baseline.keras,0.0,849,0.9917550058892816
+cnn_baseline.keras,0.05,849,0.9941107184923439
+cnn_baseline.keras,0.1,849,0.9893992932862191
+cnn_baseline.keras,0.15,849,0.9646643109540636
+cnn_baseline.keras,0.2,849,0.9022379269729093
+cnn_baseline.keras,0.3,849,0.6431095406360424
+cnn_no_crop.keras,0.0,849,0.9882214369846879
+cnn_no_crop.keras,0.05,849,0.9893992932862191
+cnn_no_crop.keras,0.1,849,0.9917550058892816
+cnn_no_crop.keras,0.15,849,0.9905771495877503
+cnn_no_crop.keras,0.2,849,0.9917550058892816
+cnn_no_crop.keras,0.3,849,0.9893992932862191

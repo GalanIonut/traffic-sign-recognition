@@ -1,0 +1,6 @@
+{
+  "classifier": "cnn_baseline.keras",
+  "image_size": 48,
+  "margin": 0.05,
+  "conf": 0.45
+}
