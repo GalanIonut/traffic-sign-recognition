@@ -15,3 +15,6 @@ BATCH_SIZE = 64
 VAL_FRACTION = 0.15
 MODELS_DIR = PROJECT_ROOT / "models"
 APP_ASSETS_DIR = PROJECT_ROOT / "app" / "assets"
+GTSDB_DIR = PROJECT_ROOT / "data" / "gtsdb"
+GTSDB_YOLO_DIR = PROJECT_ROOT / "data" / "gtsdb_yolo"
+GTSDB_IMAGE_SIZE = (1360, 800)  # (latime, inaltime)

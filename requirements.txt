@@ -8,6 +8,7 @@ altair==6.3.0
     # via streamlit
 anyio==4.15.1
     # via
+    #   httpx
     #   starlette
     #   streamlit
 appnope==1.0.0 ; sys_platform == 'darwin'
@@ -25,7 +26,10 @@ beautifulsoup4==4.15.0
 bleach==6.4.0
     # via nbconvert
 certifi==2026.10.23
-    # via requests
+    # via
+    #   httpcore
+    #   httpx
+    #   requests
 cffi==2.1.1 ; implementation_name == 'pypy'
     # via pyzmq
 charset-normalizer==3.5.2
@@ -44,6 +48,12 @@ comm==0.2.3
     # via ipykernel
 contourpy==1.4.0
     # via matplotlib
+cuda-bindings==13.4.4 ; python_full_version < '3.15' and sys_platform == 'linux'
+    # via torch
+cuda-pathfinder==1.8.4 ; python_full_version < '3.15' and sys_platform == 'linux'
+    # via cuda-bindings
+cuda-toolkit==13.0.3.0 ; sys_platform == 'linux'
+    # via torch
 cycler==0.12.1
     # via matplotlib
 debugpy==1.8.22
@@ -54,10 +64,14 @@ executing==2.3.0
     # via stack-data
 fastjsonschema==2.22.2
     # via nbformat
+filelock==4.2.4
+    # via torch
 flatbuffers==25.12.19
     # via tensorflow
 fonttools==4.67.0
     # via matplotlib
+fsspec==2026.9.0
+    # via torch
 gast==0.7.0
     # via tensorflow
 google-pasta==0.2.0
@@ -65,14 +79,21 @@ google-pasta==0.2.0
 grpcio==1.85.0
     # via tensorflow
 h11==0.16.0
-    # via uvicorn
+    # via
+    #   httpcore
+    #   uvicorn
 h5py==3.14.0
     # via
     #   keras
     #   tensorflow
+httpcore==1.0.9
+    # via httpx
+httpx==0.28.1
+    # via ultralytics-platform
 idna==3.20
     # via
     #   anyio
+    #   httpx
     #   requests
 iniconfig==2.3.1
     # via pytest
@@ -90,6 +111,7 @@ jinja2==3.1.6
     #   altair
     #   nbconvert
     #   pydeck
+    #   torch
 joblib==1.6.0
     # via scikit-learn
 jsonschema==4.26.0
@@ -124,7 +146,9 @@ markupsafe==3.0.4
     #   jinja2
     #   nbconvert
 matplotlib==3.11.2
-    # via traffic-signs
+    # via
+    #   traffic-signs
+    #   ultralytics
 matplotlib-inline==0.2.2
     # via
     #   ipykernel
@@ -137,6 +161,8 @@ ml-dtypes==0.6.0
     # via
     #   keras
     #   tensorflow
+mpmath==1.3.0
+    # via sympy
 namex==0.1.0
     # via keras
 narwhals==2.27.1
@@ -152,6 +178,8 @@ nbformat==5.11.1
     #   nbconvert
 nest-asyncio2==1.7.4
     # via ipykernel
+networkx==3.7
+    # via torch
 numpy==2.5.4
     # via
     #   contourpy
@@ -159,13 +187,62 @@ numpy==2.5.4
     #   keras
     #   matplotlib
     #   ml-dtypes
+    #   opencv-python
     #   pandas
     #   pydeck
     #   scikit-learn
     #   scipy
     #   streamlit
     #   tensorflow
+    #   torchvision
     #   traffic-signs
+    #   ultralytics
+    #   ultralytics-thop
+nvidia-cublas==13.1.1.3 ; sys_platform == 'linux'
+    # via
+    #   cuda-toolkit
+    #   nvidia-cudnn-cu13
+    #   nvidia-cusolver
+nvidia-cuda-cupti==13.0.85 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')
+    # via cuda-toolkit
+nvidia-cuda-nvrtc==13.0.88 ; sys_platform == 'linux'
+    # via
+    #   cuda-toolkit
+    #   nvidia-cublas
+nvidia-cuda-runtime==13.0.96 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')
+    # via cuda-toolkit
+nvidia-cudnn-cu13==9.24.0.43 ; sys_platform == 'linux'
+    # via torch
+nvidia-cufft==12.0.0.61 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')
+    # via cuda-toolkit
+nvidia-cufile==1.15.1.6 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')
+    # via cuda-toolkit
+nvidia-curand==10.4.0.35 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')
+    # via cuda-toolkit
+nvidia-cusolver==12.0.4.66 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')
+    # via cuda-toolkit
+nvidia-cusparse==12.6.3.3 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')
+    # via
+    #   cuda-toolkit
+    #   nvidia-cusolver
+nvidia-cusparselt-cu13==0.8.1 ; sys_platform == 'linux'
+    # via torch
+nvidia-ml-py==13.615.71
+    # via ultralytics
+nvidia-nccl-cu13==2.30.7 ; sys_platform == 'linux'
+    # via torch
+nvidia-nvjitlink==13.4.92 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')
+    # via
+    #   cuda-toolkit
+    #   nvidia-cufft
+    #   nvidia-cusolver
+    #   nvidia-cusparse
+nvidia-nvshmem-cu13==3.4.5 ; sys_platform == 'linux'
+    # via torch
+nvidia-nvtx==13.0.85 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')
+    # via cuda-toolkit
+opencv-python==5.0.0.93
+    # via ultralytics
 opt-einsum==3.4.0
     # via tensorflow
 optree==0.20.0
@@ -195,19 +272,27 @@ pillow==13.0.0
     # via
     #   matplotlib
     #   streamlit
+    #   torchvision
     #   traffic-signs
+    #   ultralytics
 platformdirs==4.13.5
     # via jupyter-core
 pluggy==1.7.0
     # via pytest
+polars==2.1.0
+    # via ultralytics
+polars-runtime-32==2.1.0
+    # via polars
 prompt-toolkit==3.0.53
     # via ipython
 protobuf==7.36.2
     # via
     #   streamlit
     #   tensorflow
-psutil==7.2.2 ; sys_platform != 'cygwin' and sys_platform != 'emscripten'
-    # via ipython
+psutil==7.2.2
+    # via
+    #   ipython
+    #   ultralytics
 ptyprocess==0.7.0 ; sys_platform != 'emscripten' and sys_platform != 'win32'
     # via pexpect
 pure-eval==0.2.4
@@ -235,6 +320,10 @@ python-dateutil==3.0.0
     #   pandas
 python-multipart==0.0.32
     # via streamlit
+pyyaml==6.0.3
+    # via
+    #   traffic-signs
+    #   ultralytics
 pyzmq==27.2.0
     # via
     #   ipykernel
@@ -247,6 +336,7 @@ requests==2.34.2
     # via
     #   streamlit
     #   tensorflow
+    #   ultralytics
 rich==15.0.0
     # via keras
 rpds-py==2026.9.1
@@ -258,7 +348,9 @@ scikit-learn==1.9.1
 scipy==1.18.1
     # via scikit-learn
 setuptools==84.2.1
-    # via tensorflow
+    # via
+    #   tensorflow
+    #   torch
 six==1.17.0
     # via
     #   astunparse
@@ -273,6 +365,8 @@ starlette==1.10.0
     # via streamlit
 streamlit==1.66.1
     # via traffic-signs
+sympy==1.14.0
+    # via torch
 tensorflow==2.21.0
     # via traffic-signs
 termcolor==3.3.0
@@ -281,6 +375,13 @@ threadpoolctl==3.7.0
     # via scikit-learn
 tinycss2==1.5.1
     # via bleach
+torch==2.14.1
+    # via
+    #   torchvision
+    #   ultralytics
+    #   ultralytics-thop
+torchvision==0.29.1
+    # via ultralytics
 tornado==6.6
     # via
     #   ipykernel
@@ -295,6 +396,8 @@ traitlets==5.16.1
     #   nbclient
     #   nbconvert
     #   nbformat
+triton==3.8.0 ; python_full_version < '3.15' and sys_platform == 'linux'
+    # via torch
 typing-extensions==4.16.0
     # via
     #   altair
@@ -307,10 +410,17 @@ typing-extensions==4.16.0
     #   starlette
     #   streamlit
     #   tensorflow
+    #   torch
 tzdata==2026.5
     # via
     #   pandas
     #   python-dateutil
+ultralytics==8.4.190
+    # via traffic-signs
+ultralytics-platform==0.1.99
+    # via ultralytics
+ultralytics-thop==2.2.3
+    # via ultralytics
 urllib3==2.8.0
     # via requests
 uvicorn==0.54.0
