@@ -1,0 +1,25 @@
+{
+  "run_name": "resnet50_conv4",
+  "stage1_epochs": 5,
+  "stage2_epochs": 15,
+  "unfreeze": "conv4+conv5",
+  "no_class_weights": false,
+  "epochs_run": 16,
+  "best_epoch": 13,
+  "best_val_loss": 0.02053264155983925,
+  "best_val_accuracy": 0.9938461780548096,
+  "train_seconds": 2615.0,
+  "params": 23675819,
+  "trainable_params": 22129707,
+  "unfrozen_layers": 65,
+  "stage1": {
+    "epochs": 5,
+    "learning_rate": 0.001,
+    "patience": 2
+  },
+  "stage2": {
+    "epochs": 15,
+    "learning_rate": 0.0001,
+    "patience": 3
+  }
+}
