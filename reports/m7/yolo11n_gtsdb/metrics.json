@@ -1,0 +1,14 @@
+{
+  "precision": 0.9718556673953764,
+  "recall": 0.9667590027700831,
+  "map50": 0.9866414560544877,
+  "map50_95": 0.872002567759465,
+  "split": "test",
+  "imgsz": 1024,
+  "inference_ms_per_image_batched": 0.8421105599942773,
+  "preprocess_ms": 0.13117486674066944,
+  "postprocess_ms": 4.514112640123737,
+  "end_to_end_ms_single_image": 8.610481297364458,
+  "note": "inference_ms_per_image_batched = doar propagarea prin rețea, medie pe imagine în validarea Ultralytics (loturi, fără citirea imaginii); preprocess_ms și postprocess_ms = redimensionare și, respectiv, NMS, în aceeași validare; end_to_end_ms_single_image = timp total mediu (wall-clock) pentru model.predict pe o singură imagine (citire, preprocesare, rețea, NMS) pe 20 de imagini de test, după 3 apeluri de încălzire.",
+  "conf_note": "Precizia și recall-ul sunt calculate de Ultralytics la pragul de încredere care maximizează F1; exemplele din examples.png folosesc pragul conf 0.25."
+}
