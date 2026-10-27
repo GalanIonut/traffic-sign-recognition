@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import BinaryIO
 
 import numpy as np
-from PIL import UnidentifiedImageError
+from PIL import Image, UnidentifiedImageError
 
 from traffic_signs import config
 from traffic_signs.classes import CLASS_NAMES
@@ -47,7 +47,7 @@ def read_image(source: str | Path | BinaryIO) -> np.ndarray:
     """Citeste o imagine (cale sau file-like) ca uint8 (H, W, 3); eroare prietenoasa daca nu e valida."""
     try:
         return load_image(source)
-    except (UnidentifiedImageError, OSError, ValueError, SyntaxError) as err:
+    except (UnidentifiedImageError, OSError, ValueError, SyntaxError, Image.DecompressionBombError) as err:
         raise InvalidImageError(
             "Fișierul nu pare să fie o imagine validă. Încearcă un PNG sau JPG."
         ) from err

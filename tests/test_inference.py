@@ -54,6 +54,16 @@ def test_read_image_invalid_raises_friendly(tmp_path):
         with pytest.raises(InvalidImageError) as exc:
             read_image(source)
         assert "imagine validă" in str(exc.value)
+        assert exc.value.__cause__ is not None
+
+
+def test_read_image_decompression_bomb_is_friendly(tmp_path, monkeypatch):
+    Image.new("RGB", (40, 40), (1, 2, 3)).save(tmp_path / "big.png")
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 10)  # peste 2x limita -> DecompressionBombError
+    with pytest.raises(InvalidImageError) as exc:
+        read_image(tmp_path / "big.png")
+    assert "imagine validă" in str(exc.value)
+    assert isinstance(exc.value.__cause__, Image.DecompressionBombError)
 
 
 def test_classify_topk_sorted_and_named():
