@@ -48,8 +48,8 @@ Alte experimente cu CNN-ul (aceeași arhitectură):
 ### 2. Codul și mediul
 
 ```bash
-git clone <URL-ul-repository-ului>
-cd Tehnici_Inteligenta_Artificiala
+git clone https://github.com/GalanIonut/traffic-sign-recognition.git
+cd traffic-sign-recognition
 uv sync
 ```
 
