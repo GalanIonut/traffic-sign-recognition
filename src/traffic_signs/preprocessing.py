@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import BinaryIO
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 
 
 def load_image(path: str | Path | bytes | BinaryIO) -> np.ndarray:
@@ -15,6 +15,9 @@ def load_image(path: str | Path | bytes | BinaryIO) -> np.ndarray:
     if isinstance(path, bytes):  # tf.numpy_function trimite caile ca bytes
         path = os.fsdecode(path)
     with Image.open(path) as im:
+        im.load()
+        # orientarea EXIF (pozele de la telefon); transpose pastreaza info/transparenta
+        im = ImageOps.exif_transpose(im)
         has_alpha = im.mode in ("RGBA", "LA", "PA") or "transparency" in im.info
         if has_alpha:
             rgba = im.convert("RGBA")

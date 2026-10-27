@@ -49,3 +49,12 @@ def test_app_without_models_stops_with_error(tmp_path, monkeypatch):
     assert not at.exception
     assert len(at.error) == 1
     assert len(at.radio) == 0
+
+
+def test_app_corrupt_model_shows_friendly_error(tmp_path, monkeypatch):
+    (tmp_path / CNN_FILE).write_bytes(b"")  # fisier gol, nu se poate incarca
+    monkeypatch.setattr(config, "MODELS_DIR", tmp_path)
+    at = _run()
+    at.selectbox[0].select("Stop").run()
+    assert not at.exception
+    assert any("nu a putut fi încărcat" in e.value for e in at.error)

@@ -43,7 +43,7 @@ with st.sidebar:
     label = st.radio("Model", [s.label for s in specs])
     spec = next(s for s in specs if s.label == label)
     st.caption(DESCRIPTIONS[spec.key])
-    if len(specs) == 1:
+    if not any(s.key == "resnet50" for s in specs):
         st.info(f"Modelul ResNet50 lipsește. Adaugă-l cu:\n\n`{PROMOTE_CMD}`")
 
 uploaded = st.file_uploader(
@@ -55,6 +55,8 @@ choice = st.selectbox("…sau alege un exemplu", [NO_SAMPLE, *samples])
 source, true_id = None, None
 if uploaded is not None:  # fisierul incarcat are prioritate
     source = uploaded
+    if choice != NO_SAMPLE:
+        st.caption("Se folosește imaginea încărcată; exemplul ales e ignorat.")
 elif choice != NO_SAMPLE:
     source = samples[choice]
     true_id = sample_class_id(source)
@@ -67,7 +69,11 @@ else:
     except InvalidImageError as err:
         st.error(str(err))
     else:
-        model = get_model(str(models_dir / spec.filename))
+        try:
+            model = get_model(str(models_dir / spec.filename))
+        except Exception:  # fisier corupt/incompatibil: mesaj prietenos, fara traceback
+            st.error("Modelul nu a putut fi încărcat. Verifică fișierul din folderul `models/`.")
+            st.stop()
         start = time.perf_counter()
         top = classify(model, image, spec.image_size, k=3)
         elapsed_ms = (time.perf_counter() - start) * 1000
@@ -75,7 +81,7 @@ else:
 
         col_img, col_pred, col_meta = st.columns(3)
         with col_img:
-            st.image(image, caption="Imaginea încărcată", use_container_width=True)
+            st.image(image, caption="Imaginea încărcată", width="stretch")
         with col_pred:
             st.subheader(best.name)
             st.metric("Încredere", format_percent(best.confidence))
@@ -94,6 +100,6 @@ else:
             st.markdown("**Semnul oficial**")
             meta = meta_image_path(best.class_id, assets_dir)
             if meta is not None:
-                st.image(str(meta), use_container_width=True)
+                st.image(str(meta), width="stretch")
 
 st.caption("Modelul cunoaște doar cele 43 de semne din setul german GTSRB.")
