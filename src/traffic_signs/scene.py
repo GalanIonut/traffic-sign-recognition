@@ -6,8 +6,10 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Sequence
 
+import matplotlib
 import numpy as np
 import pandas as pd
+from PIL import Image, ImageDraw, ImageFont
 
 from traffic_signs import config
 from traffic_signs.classes import CLASS_NAMES
@@ -64,7 +66,7 @@ def save_pipeline_config(cfg: PipelineConfig, path: Path = config.PIPELINE_CONFI
 
 
 def crop_with_margin(image: np.ndarray, box: Box, margin: float) -> np.ndarray:
-    """Decupeaza box-ul extins cu `margin` pe fiecare parte, tăiat la imagine; minim 1x1 px."""
+    """Decupeaza box-ul extins cu `margin` pe fiecare parte, taiat la imagine; minim 1x1 px."""
     h, w = image.shape[:2]
     x1, y1, x2, y2 = box
     dx, dy = margin * (x2 - x1), margin * (y2 - y1)
@@ -231,3 +233,86 @@ def best_threshold(per_image: list[tuple[list[SceneSign], list[GroundTruth]]],
         if f1 > best_f1:
             best_t, best_f1 = t, f1
     return best_t
+
+
+COLOR_NEUTRAL = (0x2A, 0x78, 0xD6)
+COLOR_CORRECT = (0x1B, 0xAF, 0x7A)
+COLOR_WRONG = (0xEB, 0x68, 0x34)
+COLOR_MISSED_BG = (0x13, 0x23, 0x3F)
+STATUS_COLORS = {"correct": COLOR_CORRECT, "wrong": COLOR_WRONG, "false": COLOR_WRONG}
+STATUS_SUFFIX = {"correct": " (corect)", "wrong": " (greșit)", "false": " (nu e semn)"}
+
+
+def _font(size: int):
+    """DejaVu Sans (livrat cu matplotlib) are ă, î, ș, ț; fontul implicit PIL nu le are."""
+    try:
+        path = Path(matplotlib.get_data_path()) / "fonts" / "ttf" / "DejaVuSans.ttf"
+        return ImageFont.truetype(str(path), size)
+    except OSError:
+        return ImageFont.load_default(size=size)
+
+
+def label_text(sign: SceneSign, status: str | None = None) -> str:
+    """Eticheta de pe imagine: numar, clasa, incredere CNN; statusul ca sufix (fara emoji)."""
+    best = sign.best
+    return f"{sign.number} · {best.name} {round(best.confidence * 100)}%{STATUS_SUFFIX.get(status, '')}"
+
+
+def missed_label(gt: GroundTruth) -> str:
+    return f"ratat: {CLASS_NAMES[gt.class_id]}"
+
+
+def _dotted_rect(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int],
+                 color: tuple[int, int, int], width: int, dash: int, gap: int) -> None:
+    x1, y1, x2, y2 = box
+    for pos in range(x1, x2 + 1, dash + gap):
+        end = min(pos + dash, x2)
+        draw.line([(pos, y1), (end, y1)], fill=color, width=width)
+        draw.line([(pos, y2), (end, y2)], fill=color, width=width)
+    for pos in range(y1, y2 + 1, dash + gap):
+        end = min(pos + dash, y2)
+        draw.line([(x1, pos), (x1, end)], fill=color, width=width)
+        draw.line([(x2, pos), (x2, end)], fill=color, width=width)
+
+
+def _draw_label(draw: ImageDraw.ImageDraw, font, text: str, box: tuple[int, int, int, int],
+                bg: tuple[int, int, int], size: tuple[int, int]) -> None:
+    """Eticheta deasupra patratului (dedesubt daca nu incape), taiata in interiorul imaginii."""
+    w, h = size
+    left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
+    tw, th, pad = right - left, bottom - top, 3
+    bw, bh = tw + 2 * pad, th + 2 * pad
+    x = min(max(box[0], 0), max(w - bw, 0))
+    y = box[1] - bh
+    if y < 0:
+        y = min(box[3], max(h - bh, 0))
+    draw.rectangle([x, y, x + bw - 1, y + bh - 1], fill=bg)
+    draw.text((x + pad - left, y + pad - top), text, fill=(255, 255, 255), font=font)
+
+
+def annotate(image: np.ndarray, signs: list[SceneSign], statuses: dict[int, str] | None = None,
+             missed: list[GroundTruth] | None = None) -> np.ndarray:
+    """Copie a imaginii RGB cu patrate colorate dupa status si etichete; intrarea ramane intacta."""
+    h, w = image.shape[:2]
+    pil = Image.fromarray(np.ascontiguousarray(image)).convert("RGB")
+    draw = ImageDraw.Draw(pil)
+    width = max(2, round(min(h, w) / 250))
+    font = _font(max(12, min(h, w) // 40))
+
+    def to_px(b: Box) -> tuple[int, int, int, int]:
+        x1, y1, x2, y2 = (round(v) for v in b)
+        x1, x2 = min(max(x1, 0), w - 1), min(max(x2 - 1, 0), w - 1)
+        y1, y2 = min(max(y1, 0), h - 1), min(max(y2 - 1, 0), h - 1)
+        return x1, y1, max(x2, x1), max(y2, y1)
+
+    for g in missed or []:
+        box = to_px(g.box)
+        _dotted_rect(draw, box, (255, 255, 255), width, dash=3 * width + 4, gap=2 * width + 2)
+        _draw_label(draw, font, missed_label(g), box, COLOR_MISSED_BG, (w, h))
+    for s in signs:
+        status = statuses.get(s.number) if statuses else None
+        color = STATUS_COLORS.get(status, COLOR_NEUTRAL)
+        box = to_px(s.box)
+        draw.rectangle(box, outline=color, width=width)
+        _draw_label(draw, font, label_text(s, status), box, color, (w, h))
+    return np.array(pil)

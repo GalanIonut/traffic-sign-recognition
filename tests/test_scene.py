@@ -204,3 +204,70 @@ def test_pipeline_config_roundtrip(tmp_path):
     path = tmp_path / "pipeline.json"
     scene.save_pipeline_config(cfg, path)
     assert scene.load_pipeline_config(path) == cfg
+
+
+AQUA, ORANGE, BLUE = (0x1B, 0xAF, 0x7A), (0xEB, 0x68, 0x34), (0x2A, 0x78, 0xD6)
+
+
+def _black(h=200, w=300):
+    return np.zeros((h, w, 3), dtype=np.uint8)
+
+
+def _edge_has(img, color, x=50, y=100):
+    return tuple(int(v) for v in img[y, x]) == color
+
+
+def test_annotate_keeps_shape_and_input():
+    img = _black()
+    sign = _sign(1, (50, 50, 150, 150), 0.9, 14)
+    out = scene.annotate(img, [sign])
+    assert out.shape == img.shape and out.dtype == np.uint8
+    assert not img.any()
+    assert out.any()
+    assert _edge_has(out, BLUE)
+
+
+def test_annotate_colors_by_status():
+    sign = _sign(1, (50, 50, 150, 150), 0.9, 14)
+    assert _edge_has(scene.annotate(_black(), [sign], {1: "correct"}), AQUA)
+    assert _edge_has(scene.annotate(_black(), [sign], {1: "wrong"}), ORANGE)
+    assert _edge_has(scene.annotate(_black(), [sign], {1: "false"}), ORANGE)
+
+
+def test_annotate_draws_missed():
+    gt = GroundTruth((100, 100, 160, 160), 14)
+    out = scene.annotate(_black(), [], missed=[gt])
+    assert out[100:160, 100:160].any()
+
+
+def test_annotate_handles_border_and_tiny_image():
+    sign = _sign(1, (0, 0, 300, 200), 0.9, 14)
+    out = scene.annotate(_black(), [sign], {1: "correct"},
+                         [GroundTruth((290, 190, 300, 200), 1)])
+    assert out.shape == (200, 300, 3)
+    tiny = scene.annotate(_black(20, 20), [_sign(2, (5, 5, 19, 19), 0.9, 14)])
+    assert tiny.shape == (20, 20, 3)
+
+
+def test_label_text():
+    sign = SceneSign(1, (0, 0, 10, 10), 0.9, (Prediction(14, "Stop", 0.987),))
+    assert scene.label_text(sign) == "1 · Stop 99%"
+    assert scene.label_text(sign, "correct") == "1 · Stop 99% (corect)"
+    assert scene.label_text(sign, "wrong") == "1 · Stop 99% (greșit)"
+    assert scene.label_text(sign, "false") == "1 · Stop 99% (nu e semn)"
+    gt = GroundTruth((0, 0, 10, 10), 14)
+    assert scene.missed_label(gt) == "ratat: Stop"
+
+
+def test_label_renders_diacritics():
+    sign = SceneSign(3, (50, 50, 150, 150), 0.9,
+                     (Prediction(13, "Cedează trecerea", 0.8),))
+    out = scene.annotate(_black(), [sign], {3: "wrong"})
+    assert out.any()
+
+
+def test_label_font_has_romanian_glyphs():
+    font = scene._font(20)
+    missing = bytes(font.getmask("\uffff"))
+    for ch in "ăâîșț":
+        assert bytes(font.getmask(ch)) != missing
