@@ -5,7 +5,7 @@ from PIL import Image
 
 from traffic_signs import config
 from traffic_signs.detection import (
-    SPLITS, build_yolo_dataset, load_gt, split_of, summarize_metrics, to_yolo_box,
+    SPLITS, build_yolo_dataset, load_gt, read_yolo_boxes, split_of, summarize_metrics, to_yolo_box,
     train_args, yolo_label_lines,
 )
 
@@ -151,3 +151,25 @@ def test_summarize_metrics_reads_box_fields():
     out = summarize_metrics(SimpleNamespace(box=box))
     assert out == {"precision": 0.9, "recall": 0.8, "map50": 0.85, "map50_95": 0.6}
     assert all(type(v) is float for v in out.values())
+
+
+def test_read_yolo_boxes_empty_file(tmp_path):
+    f = tmp_path / "a.txt"
+    f.write_text("")
+    assert read_yolo_boxes(f, 1360, 800) == []
+
+
+def test_read_yolo_boxes_full_image(tmp_path):
+    f = tmp_path / "a.txt"
+    f.write_text("0 0.5 0.5 1.0 1.0\n")
+    (box,) = read_yolo_boxes(f, 1360, 800)
+    assert box == pytest.approx((0, 0, 1360, 800), abs=1e-6)
+
+
+def test_read_yolo_boxes_roundtrip_with_to_yolo_box(tmp_path):
+    cx, cy, w, h = to_yolo_box(774, 411, 815, 446, 1360, 800)
+    f = tmp_path / "a.txt"
+    f.write_text(f"0 {cx} {cy} {w} {h}\n")
+    (box,) = read_yolo_boxes(f, 1360, 800)
+    # conventia inclusiva: x2 si y2 sunt cu 1 mai mari decat colturile din GT
+    assert box == pytest.approx((774, 411, 816, 447), abs=1e-6)

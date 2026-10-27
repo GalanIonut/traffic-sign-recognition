@@ -30,9 +30,15 @@ def main() -> None:
     start = time.time()
     model.train(**kwargs)
     seconds = time.time() - start
-    run_dir = Path(kwargs["project"]) / args.run_name
+    # Folderul real folosit de antrenor (Ultralytics poate adauga sufix la nume)
+    run_dir = Path(model.trainer.save_dir)
+    epochs_run = args.epochs
+    results_csv = run_dir / "results.csv"
+    if results_csv.exists():
+        n_rows = max(len(results_csv.read_text().strip().splitlines()) - 1, 0)
+        epochs_run = n_rows or args.epochs
     (run_dir / "train_seconds.txt").write_text(f"{seconds:.1f}\n")
-    print(f"Antrenare terminata in {seconds:.0f} s ({seconds / args.epochs:.1f} s/epoca, "
+    print(f"Antrenare terminata in {seconds:.0f} s ({seconds / epochs_run:.1f} s/epoca, "
           f"{args.device}); rezultate in {run_dir}")
 
 

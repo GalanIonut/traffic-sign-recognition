@@ -37,6 +37,19 @@ def to_yolo_box(x1: int, y1: int, x2: int, y2: int,
     return cx, cy, w, h
 
 
+def read_yolo_boxes(label_path: Path, width: int, height: int
+                    ) -> list[tuple[float, float, float, float]]:
+    """Fisier de etichete YOLO -> lista (x1, y1, x2, y2) in pixeli (x2, y2 exclusive, ca in to_yolo_box)."""
+    boxes = []
+    for line in Path(label_path).read_text().splitlines():
+        if not line.strip():
+            continue
+        _, cx, cy, w, h = map(float, line.split()[:5])
+        boxes.append(((cx - w / 2) * width, (cy - h / 2) * height,
+                      (cx + w / 2) * width, (cy + h / 2) * height))
+    return boxes
+
+
 def yolo_label_lines(boxes: pd.DataFrame, width: int, height: int) -> list[str]:
     """O linie `0 cx cy w h` per patrat; clasa GTSRB nu intra in etichete."""
     lines = []
