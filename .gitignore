@@ -18,6 +18,9 @@ models/*.h5
 models/*.keras
 !models/cnn_*.keras
 models/*.pt
+!models/yolo_signs.pt
+# Ponderi descarcate de Ultralytics in radacina
+/*.pt
 runs/
 
 # Sistem

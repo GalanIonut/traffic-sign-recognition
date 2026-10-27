@@ -5,7 +5,8 @@ from PIL import Image
 
 from traffic_signs import config
 from traffic_signs.detection import (
-    SPLITS, build_yolo_dataset, load_gt, split_of, to_yolo_box, yolo_label_lines,
+    SPLITS, build_yolo_dataset, load_gt, split_of, summarize_metrics, to_yolo_box,
+    train_args, yolo_label_lines,
 )
 
 def _gt_text():
@@ -111,3 +112,42 @@ def test_real_gt_counts():
     assert len(gt) == 1213
     assert (gt["image_id"].astype(int) < 600).sum() == 852
     assert gt.groupby("image_id").size().max() == 6
+
+
+def test_build_dataset_refuses_to_delete_foreign_dir(fake_all_images):
+    images_dir, gt, out = fake_all_images
+    out.mkdir()
+    (out / "important.txt").write_text("nu sterge")
+    with pytest.raises(ValueError, match="dataset.yaml"):
+        build_yolo_dataset(gt, images_dir, out)
+    assert (out / "important.txt").exists()
+
+
+def test_build_dataset_allows_empty_existing_dir(fake_all_images):
+    images_dir, gt, out = fake_all_images
+    out.mkdir()
+    counts = build_yolo_dataset(gt, images_dir, out)
+    assert counts["train"]["images"] == 500
+
+
+def test_build_dataset_rejects_image_id_out_of_range(fake_all_images):
+    images_dir, gt, out = fake_all_images
+    bad = pd.concat([gt, gt.iloc[:1].assign(image_id="00900")], ignore_index=True)
+    with pytest.raises(ValueError, match="00900"):
+        build_yolo_dataset(bad, images_dir, out)
+
+
+def test_train_args_defaults(tmp_path):
+    a = train_args(tmp_path / "d.yaml", "r1")
+    assert a["imgsz"] == 1024 and a["device"] == "mps" and a["seed"] == 42
+    assert a["name"] == "r1" and a["exist_ok"] is False and a["deterministic"] is True
+    assert a["project"].endswith("runs/yolo")
+    assert a["epochs"] == 100 and a["batch"] == 8 and a["patience"] == 20 and a["plots"] is True
+
+
+def test_summarize_metrics_reads_box_fields():
+    from types import SimpleNamespace
+    box = SimpleNamespace(mp=0.9, mr=0.8, map50=0.85, map=0.6)
+    out = summarize_metrics(SimpleNamespace(box=box))
+    assert out == {"precision": 0.9, "recall": 0.8, "map50": 0.85, "map50_95": 0.6}
+    assert all(type(v) is float for v in out.values())

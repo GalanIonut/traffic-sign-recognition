@@ -69,6 +69,11 @@ def build_yolo_dataset(gt: pd.DataFrame, images_dir: Path,
     from traffic_signs.config import GTSDB_IMAGE_SIZE
     width, height = GTSDB_IMAGE_SIZE
     out_dir = Path(out_dir)
+    bad_ids = sorted({i for i in gt["image_id"] if not 0 <= int(i) <= 899})
+    if bad_ids:
+        raise ValueError(f"image_id in afara intervalului 0-899: {bad_ids}")
+    if out_dir.exists() and any(out_dir.iterdir()) and not (out_dir / "dataset.yaml").exists():
+        raise ValueError(f"{out_dir} nu e gol si nu contine dataset.yaml: refuz sa il sterg")
     # Verificam toate pozele inainte sa stergem ceva: eroare clara, nu set incomplet
     sources = {n: _find_image(images_dir, n) for rng in SPLITS.values() for n in rng}
 
@@ -93,3 +98,22 @@ def build_yolo_dataset(gt: pd.DataFrame, images_dir: Path,
            "test": "images/test", "names": {0: CLASS_NAME}}
     (out_dir / "dataset.yaml").write_text(yaml.safe_dump(cfg, sort_keys=False))
     return counts
+
+
+def train_args(data_yaml: Path, run_name: str, epochs: int = 100, imgsz: int = 1024,
+               batch: int = 8, device: str = "mps", patience: int = 20) -> dict:
+    """Argumentele exacte trimise la YOLO.train."""
+    from traffic_signs.config import PROJECT_ROOT, SEED
+    return {
+        "data": str(data_yaml), "epochs": epochs, "imgsz": imgsz, "batch": batch,
+        "device": device, "patience": patience, "seed": SEED, "deterministic": True,
+        "project": str(PROJECT_ROOT / "runs" / "yolo"), "name": run_name,
+        "exist_ok": False, "plots": True,
+    }
+
+
+def summarize_metrics(results) -> dict:
+    """Cele 4 metrici de detectie din obiectul de validare Ultralytics."""
+    b = results.box
+    return {"precision": float(b.mp), "recall": float(b.mr),
+            "map50": float(b.map50), "map50_95": float(b.map)}
