@@ -213,6 +213,11 @@ uv run pytest -q
 
 ---
 
+## Echipa
+- Galan Ionuț-Cătălin
+- Cioponea Ionuț-Sebastian
+- Braitor Ana-Maria
+
 ## Tehnologii
 Python 3.12 · TensorFlow 2.21 / Keras 3 · Streamlit · NumPy · pandas · Pillow · scikit-learn · Matplotlib · pytest · uv
 
